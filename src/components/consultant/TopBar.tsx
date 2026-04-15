@@ -1,11 +1,11 @@
 "use client";
 import React from "react";
-import { 
-  Bell, 
-  LogOut, 
-  ChevronDown, 
-  User, 
-  Settings, 
+import {
+  Bell,
+  LogOut,
+  ChevronDown,
+  User,
+  Settings,
   Search
 } from "lucide-react";
 import {
@@ -22,25 +22,12 @@ export default function TopBar() {
   return (
     <div className="flex items-center justify-between px-10 py-4 border-b border-slate-100 bg-white sticky top-0 z-10 h-20">
       <div className="flex items-center gap-8">
-        <div className="text-slate-900 text-lg font-bold tracking-tight">
-          Fixpair <span className="text-emerald-600">Consultant</span>
-        </div>
-        
-        <div className="relative group hidden md:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-focus-within:text-emerald-500 transition-colors" />
-          <input 
-            type="text" 
-            placeholder="Search tasks..." 
-            className="pl-10 pr-4 py-2 bg-slate-50 border-none rounded-2xl text-sm w-64 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all outline-none"
-          />
-        </div>
+
+
       </div>
 
       <div className="flex items-center gap-6">
-        <button className="relative p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all group">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white group-hover:scale-110 transition-transform"></span>
-        </button>
+
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -58,7 +45,7 @@ export default function TopBar() {
               <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
             </button>
           </DropdownMenuTrigger>
-          
+
           <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[20px] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border-slate-100">
             <DropdownMenuLabel className="px-3 py-4">
               <div className="flex flex-col gap-1">
@@ -74,9 +61,9 @@ export default function TopBar() {
                 </div>
               </div>
             </DropdownMenuLabel>
-            
+
             <DropdownMenuSeparator className="bg-slate-50 mx-2" />
-            
+
             <DropdownMenuGroup className="p-1">
               <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer focus:bg-emerald-50 focus:text-emerald-600 group transition-all">
                 <User className="w-4 h-4 text-slate-400 group-focus:text-emerald-600" />
@@ -87,9 +74,9 @@ export default function TopBar() {
                 <span className="font-medium">Account Settings</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            
+
             <DropdownMenuSeparator className="bg-slate-50 mx-2" />
-            
+
             <div className="p-1">
               <DropdownMenuItem className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-700 group transition-all">
                 <div className="p-1.5 bg-rose-50 rounded-lg group-focus:bg-rose-100">

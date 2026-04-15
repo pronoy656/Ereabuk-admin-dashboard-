@@ -7,8 +7,8 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
-  UserRound,
-  FileSpreadsheet,
+  Activity,
+  CreditCard,
   Settings,
   HelpCircle,
   LogOut,
@@ -19,8 +19,8 @@ const items = [
     group: "Main Menu", links: [
       { href: "/admin/overview", label: "Overview", Icon: LayoutDashboard },
       { href: "/admin/users", label: "Users", Icon: Users },
-      { href: "/admin/patients", label: "Patients", Icon: UserRound },
-      { href: "/admin/formularies", label: "Formularies", Icon: FileSpreadsheet },
+      { href: "/admin/monitoring", label: "Live Monitoring", Icon: Activity },
+      { href: "/admin/payments", label: "Payments", Icon: CreditCard },
     ]
   },
   {
