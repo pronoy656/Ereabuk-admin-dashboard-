@@ -1,62 +1,43 @@
 "use client";
 import React from "react";
 import { LucideIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
     label: string;
     value: string;
-    trend?: string;
     Icon: LucideIcon;
     iconBgColor: string;
     iconColor: string;
-    description?: string;
 }
 
 export function StatCard({
     label,
     value,
-    trend,
     Icon,
     iconBgColor,
     iconColor,
-    description,
 }: StatCardProps) {
     return (
-        <Card className="bg-white border-slate-100 shadow-sm rounded-xl overflow-hidden">
-            <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                    <div className="space-y-4">
-                        <div
-                            className={cn(
-                                "h-12 w-12 rounded-lg flex items-center justify-center shadow-sm",
-                                iconBgColor
-                            )}
-                        >
-                            <Icon className={cn("h-6 w-6", iconColor)} />
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-xs font-medium text-slate-400 capitalize">
-                                {label}
-                            </p>
-                            <p className="text-3xl font-bold text-slate-900 tracking-tight">
-                                {value}
-                            </p>
-                            {description && (
-                                <p className="text-xs text-slate-400 font-medium">
-                                    {description}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    {trend && (
-                        <div className="text-xs font-semibold text-emerald-500 bg-emerald-50 px-2 py-1 rounded-full">
-                            {trend}
-                        </div>
-                    )}
+        <div className="group bg-white rounded-[24px] p-10 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] hover:-translate-y-1">
+            <div className="flex items-start justify-between">
+                <div className="space-y-4">
+                    <p className="text-[15px] font-medium text-slate-400 tracking-tight">
+                        {label}
+                    </p>
+                    <p className="text-[36px] font-bold text-slate-900 tracking-tight leading-none">
+                        {value}
+                    </p>
                 </div>
-            </CardContent>
-        </Card>
+                <div
+                    className={cn(
+                        "h-14 w-14 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:rotate-3",
+                        iconBgColor
+                    )}
+                >
+                    <Icon className={cn("h-6 w-6", iconColor)} />
+                </div>
+            </div>
+        </div>
     );
 }
