@@ -25,12 +25,9 @@ const items: Array<{
   label: string;
   Icon: IconType;
 }> = [
-    { href: "/overview", label: "Overview", Icon: LayoutDashboard },
-    { href: "/users", label: "Users", Icon: Users },
-    // { href: "/facilities", label: "Facilities / Agencies", Icon: Building2 },
-    { href: "/patients", label: "Patients", Icon: UserRound },
-    { href: "/formularies", label: "Formularies", Icon: FileSpreadsheet },
-    // { href: "/analytics", label: "Analytics", Icon: BarChart3 },
+    { href: "/consultant/overview", label: "Overview", Icon: LayoutDashboard },
+    { href: "/consultant/patients", label: "Patient List", Icon: UserRound },
+    { href: "/consultant/records", label: "Medical Records", Icon: FileSpreadsheet },
   ];
 
 export default function Sidebar({ active }: { active?: string }) {

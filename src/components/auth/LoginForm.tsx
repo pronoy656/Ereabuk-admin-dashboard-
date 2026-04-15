@@ -15,7 +15,7 @@ export default function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setTimeout(() => {
-      router.push("/overview");
+      router.push("/admin/overview");
     }, 600);
   }
 
