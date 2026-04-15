@@ -23,7 +23,7 @@ export default function TopBar() {
     <div className="flex items-center justify-between px-10 py-4 border-b border-slate-100 bg-white sticky top-0 z-10 h-20">
       <div className="flex items-center gap-8">
         <div className="text-slate-900 text-lg font-bold tracking-tight">
-          Consultant <span className="text-emerald-600">Portal</span>
+          Fixpair <span className="text-emerald-600">Consultant</span>
         </div>
         
         <div className="relative group hidden md:block">
@@ -47,7 +47,7 @@ export default function TopBar() {
             <button className="flex items-center gap-3 pl-2 pr-1 py-1 hover:bg-slate-50 rounded-2xl transition-all outline-none border border-transparent hover:border-slate-100 group cursor-pointer lg:min-w-[180px]">
               <div className="hidden lg:block text-right">
                 <div className="text-sm font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">Dr. Sarah Smith</div>
-                <div className="text-[11px] text-slate-400 font-medium">sarah.s@consultant.com</div>
+                <div className="text-[11px] text-slate-400 font-medium">sarah.s@fixpair.com</div>
               </div>
               <div className="relative">
                 <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-emerald-500/20">
