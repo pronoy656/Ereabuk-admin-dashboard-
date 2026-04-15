@@ -8,13 +8,11 @@ import { usePathname } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
-  Users,
-  Building2,
-  UserRound,
-  FileSpreadsheet,
-  BarChart3,
+  Clock,
+  ClipboardList,
+  Stethoscope,
+  FileText,
   LogOut,
-  ChevronLeft,
   LucideIcon,
 } from "lucide-react";
 
@@ -26,8 +24,10 @@ const items: Array<{
   Icon: IconType;
 }> = [
     { href: "/consultant/overview", label: "Overview", Icon: LayoutDashboard },
-    { href: "/consultant/patients", label: "Patient List", Icon: UserRound },
-    { href: "/consultant/records", label: "Medical Records", Icon: FileSpreadsheet },
+    { href: "/consultant/availability", label: "Availability", Icon: Clock },
+    { href: "/consultant/requests", label: "Requests", Icon: ClipboardList },
+    { href: "/consultant/consultations", label: "Consultations", Icon: Stethoscope },
+    { href: "/consultant/reports", label: "Reports", Icon: FileText },
   ];
 
 export default function Sidebar({ active }: { active?: string }) {
