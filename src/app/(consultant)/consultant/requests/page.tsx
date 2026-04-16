@@ -1,8 +1,9 @@
-export default function Page() {
+import IncomingRequests from "@/components/consultant/Requests/IncomingRequests";
+
+export default function RequestsPage() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Requests</h1>
-      <p className="text-slate-500">View and manage consultation requests from patients.</p>
+    <div className="p-2 sm:p-6 lg:p-8">
+      <IncomingRequests />
     </div>
   );
 }
