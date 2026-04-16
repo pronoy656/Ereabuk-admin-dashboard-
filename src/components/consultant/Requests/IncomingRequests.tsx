@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Video, Calendar, PhoneCall, User, Clock, Check, X } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
@@ -94,6 +95,7 @@ const initialRequests: RequestData[] = [
 // Helper Component to handle independent Live Countdowns and State Transitions for accepted requests
 const AcceptedActionState = ({ req }: { req: RequestData }) => {
   const [now, setNow] = useState(Date.now());
+  const router = useRouter();
 
   useEffect(() => {
     // Only schedule interval logic if it's a future scheduled event
@@ -138,6 +140,7 @@ const AcceptedActionState = ({ req }: { req: RequestData }) => {
   // Once the time arrives (or if it's an Instant/Callback default)
   return (
     <button
+      onClick={() => router.push('/call')}
       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-emerald-500/20 transition-transform active:scale-95 animate-in zoom-in duration-300"
     >
       {req.tabType === "Callback" ? <PhoneCall className="w-4 h-4" /> : <Video className="w-4 h-4" />} 
