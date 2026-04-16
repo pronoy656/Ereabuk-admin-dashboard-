@@ -72,8 +72,7 @@ export default function LoginForm() {
 
         <Button
           type="submit"
-          variant="brand"
-          className="w-full h-12 text-base"
+          className="w-full h-12 text-base font-bold bg-[#FF6B00] hover:bg-[#e56000] text-white shadow-lg shadow-[#FF6B00]/20 transition-all focus:ring-4 focus:ring-[#FF6B00]/30 active:scale-[0.98]"
           disabled={loading}
         >
           {loading ? "Logging in..." : "Login"}
