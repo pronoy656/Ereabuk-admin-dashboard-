@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   LogOut,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function TopBar() {
+  const router = useRouter();
   return (
     <div className="flex items-center justify-between px-10 py-4 border-b border-slate-100 bg-white sticky top-0 z-10 h-20">
       <div className="flex items-center gap-8">
@@ -77,7 +79,7 @@ export default function TopBar() {
             <DropdownMenuSeparator className="bg-slate-50 mx-2" />
 
             <div className="p-1">
-              <DropdownMenuItem className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-700 group transition-all">
+              <DropdownMenuItem onClick={() => router.push('/')} className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-700 group transition-all">
                 <div className="p-1.5 bg-rose-50 rounded-lg group-focus:bg-rose-100">
                   <LogOut className="w-4 h-4" />
                 </div>
