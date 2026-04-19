@@ -26,7 +26,6 @@ const items = [
   {
     group: "Preferences", links: [
       { href: "/admin/settings", label: "Settings", Icon: Settings },
-      { href: "/admin/help", label: "Help & Support", Icon: HelpCircle },
     ]
   }
 ];

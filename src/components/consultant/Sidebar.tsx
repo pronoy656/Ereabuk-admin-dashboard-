@@ -20,14 +20,12 @@ const items = [
       { href: "/consultant/overview", label: "Overview", Icon: LayoutDashboard },
       { href: "/consultant/availability", label: "Availability", Icon: Clock },
       { href: "/consultant/requests", label: "Requests", Icon: ClipboardList },
-      { href: "/consultant/consultations", label: "Consultations", Icon: Stethoscope },
       { href: "/consultant/reports", label: "Reports", Icon: FileText },
     ]
   },
   {
     group: "Preferences", links: [
       { href: "/consultant/settings", label: "Settings", Icon: Settings },
-      { href: "/consultant/help", label: "Help & Support", Icon: HelpCircle },
     ]
   }
 ];
