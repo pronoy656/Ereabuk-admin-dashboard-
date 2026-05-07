@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Clock, DollarSign, User, FileText, AlignLeft } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Clock, DollarSign, User, FileText, AlignLeft, Mic, MicOff, AlertCircle } from 'lucide-react';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface SessionDetails {
   topic: string;
@@ -23,9 +24,25 @@ export default function SessionSidebar() {
   const [transcript, setTranscript] = useState<{ speaker: string, text: string }[]>([
     { speaker: "System", text: "Session started. Recording and transcription enabled." }
   ]);
+  const [language, setLanguage] = useState('en-US');
   
   const details = useRef(getCallDetails()).current;
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+
+  const handleTranscriptChange = useCallback((text: string, isFinal: boolean) => {
+    if (isFinal) {
+      setTranscript(prev => [...prev, { speaker: "You", text }]);
+    }
+  }, []);
+
+  const {
+    isListening,
+    isSupported,
+    error,
+    interimTranscript,
+    startListening,
+    stopListening
+  } = useSpeechRecognition({ language, onTranscriptChange: handleTranscriptChange });
 
   // Billing & Timer Logic
   useEffect(() => {
@@ -45,36 +62,12 @@ export default function SessionSidebar() {
   // Mock Earnings calculation ($1 per minute)
   const earnings = (durationSec / 60) * 1.0;
 
-  // Mock Transcript generator
+  // Cleanup transcription on unmount
   useEffect(() => {
-    const mockDialogues = [
-      "Hello! Thanks for hopping on the call.",
-      "Hi there, thanks for your time today.",
-      "I sent over the lease agreement earlier. Did you have a chance to review the termination clause?",
-      "Yes, I see it on page 4. It looks standard, but we should definitely negotiate a shorter penalty window.",
-      "That's exactly what I was thinking.",
-      "Let's outline the counter-proposal..."
-    ];
-
-    let currentIndex = 0;
-
-    const interval = setInterval(() => {
-      if (currentIndex < mockDialogues.length) {
-        setTranscript(prev => [
-          ...prev, 
-          { 
-            speaker: currentIndex % 2 === 0 ? "You" : "David Smith", 
-            text: mockDialogues[currentIndex] 
-          }
-        ]);
-        currentIndex++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 8000); // Emits a new message every 8 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      stopListening();
+    };
+  }, [stopListening]);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -166,30 +159,90 @@ export default function SessionSidebar() {
          </div>
 
          {/* 3. Live Transcript Array (Isolated Scrolling) */}
-         <div className="p-6 flex flex-col h-full flex-1 overflow-y-auto custom-scrollbar">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-4 shrink-0">
-               <AlignLeft className="w-4 h-4 text-blue-500" /> Live Transcript
-            </h3>
-            
-            <div className="flex-1 space-y-4 pb-12">
-              {transcript.map((line, idx) => (
-                <div key={idx} className={`flex flex-col ${line.speaker === "You" ? "items-end" : "items-start"}`}>
-                  <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{line.speaker}</span>
-                  <div className={`
-                    max-w-[85%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative
-                    ${line.speaker === "You" 
-                      ? "bg-blue-600 text-white rounded-tr-sm shadow-md shadow-blue-500/20" 
-                      : line.speaker === "System" 
-                      ? "bg-slate-100 text-slate-500 rounded-xl self-center text-center italic text-xs w-full max-w-full"
-                      : "bg-slate-50 border border-slate-200 text-slate-700 rounded-tl-sm shadow-sm"}
-                  `}>
-                    {line.text}
-                  </div>
-                </div>
-              ))}
-              <div ref={transcriptEndRef} />
+         <div className="flex flex-col h-full flex-1 overflow-hidden relative">
+            <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-white border-b border-slate-50 z-10 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                 <AlignLeft className="w-4 h-4 text-blue-500" /> Live Transcript
+              </h3>
+              
+              <div className="flex items-center gap-2">
+                <select 
+                  value={language} 
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="text-[11px] font-medium border border-slate-200 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-2 py-1.5 bg-white text-slate-700 cursor-pointer outline-none"
+                >
+                  <option value="en-US">English (US)</option>
+                  <option value="bn-BD">Bengali (BD)</option>
+                </select>
+
+                <button
+                  onClick={isListening ? stopListening : startListening}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ${
+                    isListening 
+                      ? "bg-red-50 text-red-500 hover:bg-red-100 border border-red-200 relative" 
+                      : "bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-500 border border-slate-200 hover:border-blue-200"
+                  }`}
+                  title={isListening ? "Stop listening" : "Start listening"}
+                >
+                  {isListening && (
+                    <span className="absolute inset-0 rounded-full border border-red-400 animate-ping opacity-75"></span>
+                  )}
+                  {isListening ? <Mic className="w-4 h-4 relative z-10" /> : <MicOff className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             
+            {/* Scrollable messages container */}
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+              {!isSupported && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 flex items-start gap-2 shrink-0">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p>Your browser does not support the Web Speech API. Please use Chrome, Edge, or Safari.</p>
+                </div>
+              )}
+              
+              {error && (
+                <div className="mb-4 p-3 bg-orange-50 border border-orange-100 rounded-xl text-xs text-orange-700 flex items-start gap-2 shrink-0">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p>{error}</p>
+                </div>
+              )}
+              
+              <div className="flex-1 space-y-4 pb-4">
+                {transcript.map((line, idx) => (
+                  <div key={idx} className={`flex flex-col ${line.speaker === "You" ? "items-end" : "items-start"}`}>
+                    <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{line.speaker}</span>
+                    <div className={`
+                      max-w-[85%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative
+                      ${line.speaker === "You" 
+                        ? "bg-blue-600 text-white rounded-tr-sm shadow-md shadow-blue-500/20" 
+                        : line.speaker === "System" 
+                        ? "bg-slate-100 text-slate-500 rounded-xl self-center text-center italic text-xs w-full max-w-full"
+                        : "bg-slate-50 border border-slate-200 text-slate-700 rounded-tl-sm shadow-sm"}
+                    `}>
+                      {line.text}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Interim Result */}
+                {interimTranscript && (
+                  <div className="flex flex-col items-end animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">You (Speaking...)</span>
+                    <div className="max-w-[85%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative bg-blue-500/80 text-white rounded-tr-sm shadow-md italic">
+                      {interimTranscript}
+                      <span className="inline-flex ml-1 gap-0.5">
+                        <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                <div ref={transcriptEndRef} />
+              </div>
+            </div>
          </div>
 
        </div>

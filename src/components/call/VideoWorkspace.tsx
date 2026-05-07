@@ -101,17 +101,17 @@ export default function VideoWorkspace({
          </button>
 
          <button 
-           onClick={leaveCall}
-           className="w-16 h-12 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30 transition-transform active:scale-95 px-6"
-         >
-           <PhoneOff className="w-5 h-5" />
-         </button>
-
-         <button 
            onClick={toggleVideo}
            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isVideoOff ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-slate-700/80 text-white hover:bg-slate-600'}`}
          >
            {isVideoOff ? <VideoOff className="w-5 h-5" /> : <VideoIcon className="w-5 h-5" />}
+         </button>
+
+         <button 
+           onClick={leaveCall}
+           className="w-16 h-12 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30 transition-transform active:scale-95 px-6"
+         >
+           <PhoneOff className="w-5 h-5" />
          </button>
       </div>
 
