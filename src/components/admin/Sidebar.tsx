@@ -13,6 +13,7 @@ import {
   HelpCircle,
   LogOut,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const items = [
   {
@@ -33,6 +34,7 @@ const items = [
 export default function Sidebar({ active }: { active?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout } = useAuth();
   const current = active ?? pathname ?? "";
 
   return (
@@ -95,7 +97,7 @@ export default function Sidebar({ active }: { active?: string }) {
               <p className="text-[11px] text-slate-400">Admin</p>
             </div>
           </div>
-          <button onClick={() => router.push('/')} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-200 group/logout">
+          <button onClick={() => logout()} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-200 group/logout">
             <LogOut className="w-5 h-5 transition-transform group-hover/logout:-translate-x-0.5" />
           </button>
         </div>

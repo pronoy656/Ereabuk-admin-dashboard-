@@ -5,18 +5,40 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import api from "@/lib/axios";
 
 export default function LoginForm() {
   const router = useRouter();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState(process.env.NEXT_PUBLIC_ADMIN_EMAIL || "");
+  const [password, setPassword] = useState(process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "");
+  const [error, setError] = useState("");
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    setTimeout(() => {
-      router.push("/admin/overview");
-    }, 600);
+
+    try {
+      const response = await api.post("/auth/login", { email, password });
+      
+      // Based on server response: { success: true, data: { accessToken: "...", refreshToken: "..." } }
+      const token = response.data?.data?.accessToken || response.data?.accessToken || response.data?.token || response.data?.data?.token;
+      const user = response.data?.data?.user || response.data?.user || { email }; // Fallback to email if user object missing
+
+      if (token) {
+        login(token, user);
+      } else {
+        setError("Invalid response from server. Token missing.");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to login. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -26,11 +48,18 @@ export default function LoginForm() {
         <p className="text-slate-500">Login to your account</p>
       </div>
       <form onSubmit={onSubmit} className="space-y-6">
+        {error && (
+          <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+            {error}
+          </div>
+        )}
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-700">Email</label>
           <Input
             type="email"
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="Enter your email"
             className="h-12 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/20"
           />
@@ -41,6 +70,8 @@ export default function LoginForm() {
             <Input
               type={showPassword ? "text" : "password"}
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               className="h-12 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/20 pr-12"
             />
