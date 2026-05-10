@@ -63,6 +63,28 @@ export default function LoginForm() {
             placeholder="Enter your email"
             className="h-12 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/20"
           />
+          <div className="flex flex-wrap gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("shakayet.dev@gmail.com");
+                setPassword("12345678");
+              }}
+              className="text-[11px] font-medium px-2 py-1 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-all border border-slate-200 active:scale-95"
+            >
+              Admin Login
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("s18502003133@nu.ac.bd");
+                setPassword("12345678");
+              }}
+              className="text-[11px] font-medium px-2 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-600 rounded-lg transition-all border border-slate-200 active:scale-95"
+            >
+              Consultant Login
+            </button>
+          </div>
         </div>
         <div className="space-y-2 text-left">
           <label className="text-sm font-medium text-slate-700">Password</label>
