@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Trash2, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Trash2, Plus, Loader2 } from 'lucide-react';
 import { TimeSlot } from './AvailabilityManagement';
+import api from '@/lib/axios';
+import { useAuth } from '@/context/AuthContext';
 
 interface RecurringHoursProps {
   availabilityData: Record<string, TimeSlot[]>;
@@ -12,6 +14,8 @@ interface RecurringHoursProps {
 export default function RecurringHours({ availabilityData, setAvailabilityData }: RecurringHoursProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const { user } = useAuth();
 
   // Simple calendar math
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -52,13 +56,43 @@ export default function RecurringHours({ availabilityData, setAvailabilityData }
     ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` 
     : '';
 
+  // Fetch slots for selected date
+  useEffect(() => {
+    const fetchSlots = async () => {
+      if (!selectedDateKey || !user?._id) return;
+
+      setLoadingSlots(true);
+      try {
+        const response = await api.get(`/consultation/available-slots/${user._id}?date=${selectedDateKey}`);
+        
+        if (response.data.success) {
+          const fetchedSlots = response.data.data.map((slot: any) => ({
+            start: slot.startTime,
+            end: slot.endTime
+          }));
+          
+          setAvailabilityData(prev => ({
+            ...prev,
+            [selectedDateKey]: fetchedSlots
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching slots:", error);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    fetchSlots();
+  }, [selectedDateKey, user?._id, setAvailabilityData]);
+
   const slots = selectedDate ? (availabilityData[selectedDateKey] || []) : [];
 
   const handleAddSlot = () => {
     if (!selectedDateKey) return;
     setAvailabilityData(prev => ({
       ...prev,
-      [selectedDateKey]: [...(prev[selectedDateKey] || []), { start: "09:00", end: "17:00" }]
+      [selectedDateKey]: [...(prev[selectedDateKey] || []), { start: "09:00", end: "10:00" }]
     }));
   };
 
@@ -143,10 +177,13 @@ export default function RecurringHours({ availabilityData, setAvailabilityData }
       <div className="flex-1 flex flex-col">
         {selectedDate ? (
           <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 sm:p-8 flex-1">
-            <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-blue-500" />
-              {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            </h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-blue-500" />
+                {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </h3>
+              {loadingSlots && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
+            </div>
             <p className="text-slate-500 text-sm mb-8">
               Configure your specific availability for this date.
             </p>
@@ -176,7 +213,7 @@ export default function RecurringHours({ availabilityData, setAvailabilityData }
                       <Trash2 className="w-5 h-5" />
                     </button>
                  </div>
-               )) : (
+               )) : !loadingSlots && (
                  <div className="text-center py-6">
                    <p className="text-slate-500 font-medium text-[15px]">You are currently unavailable on this date.</p>
                  </div>

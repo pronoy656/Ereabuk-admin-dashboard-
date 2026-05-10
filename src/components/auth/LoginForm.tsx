@@ -13,8 +13,8 @@ export default function LoginForm() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState(process.env.NEXT_PUBLIC_ADMIN_EMAIL || "");
-  const [password, setPassword] = useState(process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
@@ -63,6 +63,8 @@ export default function LoginForm() {
             placeholder="Enter your email"
             className="h-12 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/20"
           />
+
+          {/* Auto fill buttons for quick testing. later remove them */}
           <div className="flex flex-wrap gap-2 mt-2">
             <button
               type="button"
