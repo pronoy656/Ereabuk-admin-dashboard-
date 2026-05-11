@@ -1,6 +1,7 @@
 "use client";
+
 import React, { useState, useMemo } from "react";
-import { Search, Eye, Trash2, Plus, Pencil, AlertCircle } from "lucide-react";
+import { Search, Eye, Trash2, Plus, Pencil, AlertCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
@@ -12,42 +13,39 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import api from "@/lib/axios";
+import { toast } from "sonner";
 
 interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
-  role: "Consultant" | "Customer";
-  status: "ACTIVE" | "PENDING" | "SUSPENDED";
-  joinDate: string;
-  initials: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  image?: string;
+  stats?: {
+    avgRating: number;
+    totalReviews: number;
+  };
 }
 
-const initialMockData: User[] = [
-  { id: "1", name: "Dr. Sarah Miller", email: "sarah.miller@example.com", role: "Consultant", status: "PENDING", joinDate: "2026-04-01", initials: "SM" },
-  { id: "2", name: "James Wilson", email: "james.w@example.com", role: "Customer", status: "ACTIVE", joinDate: "2026-03-28", initials: "JW" },
-  { id: "3", name: "Atty. Robert Chen", email: "rchen@legal.com", role: "Consultant", status: "ACTIVE", joinDate: "2026-01-15", initials: "RC" },
-  { id: "4", name: "Elena Rodriguez", email: "elena.r@example.com", role: "Customer", status: "SUSPENDED", joinDate: "2025-11-02", initials: "ER" },
-  { id: "5", name: "Michael Chang", email: "mchang@advisor.net", role: "Consultant", status: "ACTIVE", joinDate: "2026-02-14", initials: "MC" },
-  { id: "6", name: "Sophie Laurent", email: "sophie.l@example.com", role: "Customer", status: "ACTIVE", joinDate: "2026-03-30", initials: "SL" },
-  { id: "7", name: "Dr. Liam Peters", email: "liam.p@example.com", role: "Consultant", status: "ACTIVE", joinDate: "2026-04-10", initials: "LP" },
-  { id: "8", name: "Emma Watson", email: "emma.w@example.com", role: "Customer", status: "PENDING", joinDate: "2026-04-12", initials: "EW" },
-  { id: "9", name: "Tech Advisor Ali", email: "ali.tech@example.com", role: "Consultant", status: "ACTIVE", joinDate: "2026-01-20", initials: "AA" },
-  { id: "10", name: "Noah Brown", email: "noah.b@example.com", role: "Customer", status: "ACTIVE", joinDate: "2026-02-05", initials: "NB" },
-  { id: "11", name: "Dr. Olivia Smith", email: "olivia.s@example.com", role: "Consultant", status: "SUSPENDED", joinDate: "2025-09-17", initials: "OS" },
-  { id: "12", name: "William Davis", email: "william.d@example.com", role: "Customer", status: "ACTIVE", joinDate: "2026-03-01", initials: "WD" },
-  { id: "13", name: "Legal Pro Kim", email: "kim.l@example.com", role: "Consultant", status: "ACTIVE", joinDate: "2026-02-28", initials: "LK" },
-  { id: "14", name: "Lucas Taylor", email: "lucas.t@example.com", role: "Customer", status: "ACTIVE", joinDate: "2026-03-15", initials: "LT" },
-  { id: "15", name: "Mia Anderson", email: "mia.a@example.com", role: "Customer", status: "PENDING", joinDate: "2026-04-16", initials: "MA" },
-];
+interface PaginationData {
+  total: number;
+  limit: number;
+  page: number;
+  totalPage: number;
+}
 
 export default function UsersTable() {
-  const [users, setUsers] = useState<User[]>(initialMockData);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"All Users" | "Customers" | "Consultants">("All Users");
   
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
+  const itemsPerPage = 10;
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -58,34 +56,43 @@ export default function UsersTable() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  // Deriving table data based on filters
-  const filteredUsers = useMemo(() => {
-    return users.filter(user => {
-      // Filter by tab
-      if (activeTab === "Customers" && user.role !== "Customer") return false;
-      if (activeTab === "Consultants" && user.role !== "Consultant") return false;
-      
-      // Filter by search
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return (
-          user.name.toLowerCase().includes(query) ||
-          user.email.toLowerCase().includes(query) ||
-          user.id.toLowerCase().includes(query)
-        );
-      }
-      return true;
-    });
-  }, [users, activeTab, searchQuery]);
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const params: any = {
+        page: currentPage,
+        limit: itemsPerPage,
+      };
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+      if (searchQuery) {
+        params.searchTerm = searchQuery;
+      }
+
+      if (activeTab === "Customers") {
+        params.role = "USER";
+      } else if (activeTab === "Consultants") {
+        params.role = "CONSULTANT";
+      }
+
+      const response = await api.get("/user", { params });
+      if (response.data.success) {
+        setUsers(response.data.data);
+        setPagination(response.data.pagination);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch users");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchUsers();
+  }, [currentPage, activeTab, searchQuery]);
 
   // Change page handler
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
+    if (pagination && page >= 1 && page <= pagination.totalPage) {
       setCurrentPage(page);
     }
   };
@@ -96,17 +103,32 @@ export default function UsersTable() {
   }, [activeTab, searchQuery]);
 
   // Handlers for actions
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (selectedUser) {
-      setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
-      setIsDeleteOpen(false);
-      setSelectedUser(null);
+      try {
+        const response = await api.delete(`/user/${selectedUser._id}`);
+        if (response.data.success) {
+          toast.success("User deleted successfully");
+          fetchUsers();
+          setIsDeleteOpen(false);
+          setSelectedUser(null);
+        }
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Failed to delete user");
+      }
     }
   };
 
-  // Counting dynamic stats for tabs
-  const consultantCount = users.filter(u => u.role === "Consultant").length;
-  const customerCount = users.filter(u => u.role === "Customer").length;
+  const getInitials = (name: string) => {
+    return name
+      ? name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2)
+      : "??";
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -217,14 +239,12 @@ export default function UsersTable() {
             onClick={() => setActiveTab("Customers")}
           >
             Customers
-            <span className={`text-[10px] w-4 h-4 rounded-full flex items-center justify-center ${activeTab === "Customers" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{customerCount}</span>
           </button>
           <button 
             className={`pb-4 text-[15px] font-bold flex items-center gap-2 ${activeTab === "Consultants" ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:text-slate-700"}`}
             onClick={() => setActiveTab("Consultants")}
           >
             Consultants
-            <span className={`text-[10px] w-4 h-4 rounded-full flex items-center justify-center ${activeTab === "Consultants" ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-500"}`}>{consultantCount}</span>
           </button>
         </div>
 
@@ -253,81 +273,111 @@ export default function UsersTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedUsers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-20 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                      <p className="text-sm text-slate-500 font-medium">Loading users...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
                     No users found matching your criteria.
                   </td>
                 </tr>
-              ) : paginatedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="h-9 w-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold border border-blue-100">
-                        {user.initials}
+              ) : (
+                users.map((user) => (
+                  <tr key={user._id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        {user.image ? (
+                          <img
+                            src={user.image}
+                            alt={user.name}
+                            className="h-9 w-9 rounded-full object-cover border border-slate-100"
+                          />
+                        ) : (
+                          <div className="h-9 w-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold border border-blue-100">
+                            {getInitials(user.name)}
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-[14px] font-bold text-slate-800">{user.name}</span>
+                          <span className="text-[13px] text-slate-400 font-medium">{user.email}</span>
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[14px] font-bold text-slate-800">{user.name}</span>
-                        <span className="text-[13px] text-slate-400 font-medium">{user.email}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
-                       {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={cn(
-                        "inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-bold uppercase tracking-wide",
-                        user.status === "ACTIVE" && "bg-emerald-100 text-emerald-600",
-                        user.status === "PENDING" && "bg-yellow-100 text-yellow-600",
-                        user.status === "SUSPENDED" && "bg-red-100 text-red-500"
-                      )}
-                    >
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-[13px] text-slate-500 font-medium">{user.joinDate}</span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-3 text-slate-400">
-                       <button 
-                         onClick={() => { setSelectedUser(user); setIsViewOpen(true); }}
-                         className="p-1 hover:bg-blue-50 rounded-md hover:text-blue-500 transition-colors"
-                         aria-label="View User"
-                       >
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={cn(
+                          "inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-bold uppercase tracking-wide",
+                          user.status.toLowerCase() === "active" && "bg-emerald-100 text-emerald-600",
+                          user.status.toLowerCase() === "pending" && "bg-yellow-100 text-yellow-600",
+                          user.status.toLowerCase() === "suspended" && "bg-red-100 text-red-500"
+                        )}
+                      >
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[13px] text-slate-500 font-medium">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-3 text-slate-400">
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsViewOpen(true);
+                          }}
+                          className="p-1 hover:bg-blue-50 rounded-md hover:text-blue-500 transition-colors"
+                          aria-label="View User"
+                        >
                           <Eye className="w-4 h-4 text-blue-500" />
-                       </button>
-                       <button 
-                         onClick={() => { setSelectedUser(user); setIsEditOpen(true); }}
-                         className="p-1 hover:bg-orange-50 rounded-md hover:text-orange-500 transition-colors"
-                         aria-label="Edit User"
-                       >
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsEditOpen(true);
+                          }}
+                          className="p-1 hover:bg-orange-50 rounded-md hover:text-orange-500 transition-colors"
+                          aria-label="Edit User"
+                        >
                           <Pencil className="w-4 h-4 text-orange-500" />
-                       </button>
-                       <button 
-                         onClick={() => { setSelectedUser(user); setIsDeleteOpen(true); }}
-                         className="p-1 hover:bg-red-50 rounded-md hover:text-red-500 transition-colors"
-                         aria-label="Delete User"
-                       >
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsDeleteOpen(true);
+                          }}
+                          className="p-1 hover:bg-red-50 rounded-md hover:text-red-500 transition-colors"
+                          aria-label="Delete User"
+                        >
                           <Trash2 className="w-4 h-4 text-red-500" />
-                       </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination section */}
-        {totalPages > 0 && (
+        {pagination && pagination.totalPage > 0 && (
           <div className="px-6 py-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-[13px] text-slate-500 font-medium">
-              Showing <strong className="text-slate-700">{startIndex + 1}</strong> to <strong className="text-slate-700">{Math.min(startIndex + itemsPerPage, filteredUsers.length)}</strong> of <strong className="text-slate-700">{filteredUsers.length}</strong> results
+              Showing <strong className="text-slate-700">{(pagination.page - 1) * pagination.limit + 1}</strong> to <strong className="text-slate-700">{Math.min(pagination.page * pagination.limit, pagination.total)}</strong> of <strong className="text-slate-700">{pagination.total}</strong> results
             </div>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0">
               <button
@@ -338,7 +388,7 @@ export default function UsersTable() {
                 Previous
               </button>
               
-              {Array.from({ length: totalPages }).map((_, index) => {
+              {Array.from({ length: pagination.totalPage }).map((_, index) => {
                 const pageNum = index + 1;
                 return (
                   <button 
@@ -358,7 +408,7 @@ export default function UsersTable() {
 
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === pagination.totalPage}
                 className="px-3 py-1.5 text-[13px] font-bold text-slate-500 border border-transparent rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Next
@@ -379,9 +429,17 @@ export default function UsersTable() {
           {selectedUser && (
             <div className="space-y-4 py-4">
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold border border-blue-100">
-                  {selectedUser.initials}
-                </div>
+                {selectedUser.image ? (
+                  <img
+                    src={selectedUser.image}
+                    alt={selectedUser.name}
+                    className="h-16 w-16 rounded-full object-cover border border-slate-100"
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold border border-blue-100">
+                    {getInitials(selectedUser.name)}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">{selectedUser.name}</h3>
                   <p className="text-sm text-slate-500">{selectedUser.email}</p>
@@ -396,20 +454,20 @@ export default function UsersTable() {
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Status</p>
                   <span className={cn(
                       "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide",
-                      selectedUser.status === "ACTIVE" && "bg-emerald-100 text-emerald-600",
-                      selectedUser.status === "PENDING" && "bg-yellow-100 text-yellow-600",
-                      selectedUser.status === "SUSPENDED" && "bg-red-100 text-red-500"
+                      selectedUser.status.toLowerCase() === "active" && "bg-emerald-100 text-emerald-600",
+                      selectedUser.status.toLowerCase() === "pending" && "bg-yellow-100 text-yellow-600",
+                      selectedUser.status.toLowerCase() === "suspended" && "bg-red-100 text-red-500"
                     )}>
                       {selectedUser.status}
                   </span>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">User ID</p>
-                  <p className="font-semibold text-slate-800 text-sm">USR-{selectedUser.id.padStart(4, '0')}</p>
+                  <p className="font-semibold text-slate-800 text-sm">{selectedUser._id}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Joined Date</p>
-                  <p className="font-semibold text-slate-800 text-sm">{selectedUser.joinDate}</p>
+                  <p className="font-semibold text-slate-800 text-sm">{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
             </div>
@@ -444,17 +502,23 @@ export default function UsersTable() {
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-slate-700">Role</label>
-                <select className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
-                   <option value="Consultant" selected={selectedUser?.role === "Consultant"}>Consultant</option>
-                   <option value="Customer" selected={selectedUser?.role === "Customer"}>Customer</option>
+                <select 
+                  defaultValue={selectedUser?.role}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                   <option value="CONSULTANT">Consultant</option>
+                   <option value="USER">Customer</option>
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-slate-700">Status</label>
-                <select className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
-                   <option value="ACTIVE" selected={selectedUser?.status === "ACTIVE"}>Active</option>
-                   <option value="PENDING" selected={selectedUser?.status === "PENDING"}>Pending</option>
-                   <option value="SUSPENDED" selected={selectedUser?.status === "SUSPENDED"}>Suspended</option>
+                <select 
+                  defaultValue={selectedUser?.status}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                   <option value="active">Active</option>
+                   <option value="pending">Pending</option>
+                   <option value="suspended">Suspended</option>
                 </select>
               </div>
             </div>
@@ -468,8 +532,7 @@ export default function UsersTable() {
                 Cancel
               </button>
               <button 
-                type="button"
-                onClick={() => setIsEditOpen(false)}
+                type="submit"
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold shadow-sm shadow-blue-600/20 transition-transform active:scale-95"
               >
                 Save Changes
