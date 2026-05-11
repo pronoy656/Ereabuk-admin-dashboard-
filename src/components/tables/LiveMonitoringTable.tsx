@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Search, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Activity, Loader2 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import api from "@/lib/axios";
 
 interface Session {
   id: string;
@@ -11,28 +13,45 @@ interface Session {
   customer: string;
   cost: string;
   startedAt: string;
-  status: "Active" | "Ended";
+  status: string;
 }
 
-const mockSessions: Session[] = [
-  { id: "S-1092", consultant: "Dr. Sarah Miller", customer: "James Wilson", cost: "€35.00", startedAt: "10:23 AM", status: "Active" },
-  { id: "S-1093", consultant: "Atty. Robert Chen", customer: "Elena Rodriguez", cost: "€168.00", startedAt: "09:55 AM", status: "Ended" },
-  { id: "S-1094", consultant: "Michael Chang", customer: "Sophie Laurent", cost: "€7.50", startedAt: "10:32 AM", status: "Active" },
-  // Adding a few more to make it look full
-  { id: "S-1095", consultant: "Dr. Liam Peters", customer: "Emma Watson", cost: "€120.00", startedAt: "11:05 AM", status: "Active" },
-  { id: "S-1096", consultant: "Legal Pro Kim", customer: "William Davis", cost: "€250.00", startedAt: "08:30 AM", status: "Ended" },
-];
 
 export default function LiveMonitoringTable() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCount, setActiveCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredSessions = mockSessions.filter(session =>
+  const fetchActiveConsultations = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get("/admin/active-consultations");
+      if (response.data.success) {
+        // Mapping backend session data if necessary, assuming similar structure for now
+        // If the backend returns different field names, we would map them here
+        setSessions(response.data.data.sessions || []);
+        setActiveCount(response.data.data.count || 0);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch live monitoring data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveConsultations();
+    // Optional: Refresh every 30 seconds for live monitoring
+    const interval = setInterval(fetchActiveConsultations, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredSessions = sessions.filter(session =>
     session.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     session.consultant.toLowerCase().includes(searchQuery.toLowerCase()) ||
     session.customer.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const activeCount = mockSessions.filter(s => s.status === "Active").length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 w-full">
@@ -89,10 +108,19 @@ export default function LiveMonitoringTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSessions.length === 0 ? (
+              {loading ? (
+                <tr>
+                   <td colSpan={6} className="px-6 py-20 text-center">
+                     <div className="flex flex-col items-center justify-center gap-2">
+                       <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                       <p className="text-sm text-slate-500 font-medium">Loading live data...</p>
+                     </div>
+                   </td>
+                </tr>
+              ) : filteredSessions.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
-                    No sessions found.
+                    No active sessions found.
                   </td>
                 </tr>
               ) : filteredSessions.map((session) => (
@@ -110,18 +138,20 @@ export default function LiveMonitoringTable() {
                     <span className="text-[14px] font-bold text-slate-800">{session.cost}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-[13px] font-medium text-slate-500">{session.startedAt}</span>
+                    <span className="text-[13px] font-medium text-slate-500">
+                       {session.startedAt ? new Date(session.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <span
                       className={cn(
                         "inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-bold tracking-wide border",
-                        session.status === "Active"
+                        session.status.toLowerCase() === "active"
                           ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                           : "bg-slate-100 text-slate-500 border-slate-200"
                       )}
                     >
-                      {session.status === "Active" && (
+                      {session.status.toLowerCase() === "active" && (
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />
                       )}
                       {session.status}
