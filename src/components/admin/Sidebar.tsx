@@ -12,6 +12,7 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -20,6 +21,7 @@ const items = [
     group: "Main Menu", links: [
       { href: "/admin/overview", label: "Overview", Icon: LayoutDashboard },
       { href: "/admin/users", label: "Users", Icon: Users },
+      { href: "/admin/reports", label: "Reports", Icon: FileText },
       { href: "/admin/live-monitoring", label: "Live Monitoring", Icon: Activity },
       { href: "/admin/payments", label: "Payments", Icon: CreditCard },
     ]

@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Send, Paperclip, Link, FileText, Plus, X } from "lucide-react";
+import { Eye, Send, Paperclip, Link as LinkIcon, FileText, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,30 +22,73 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import api from "@/lib/axios";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function ReportsPage() {
-    const [attachments, setAttachments] = useState<{ name: string; size: string }[]>([]);
-    const [resources, setResources] = useState<{ name: string; type: string }[]>([
-        { name: "tax-guide-2023.pdf", type: "pdf" }
-    ]);
+    const { user } = useAuth();
+    const router = useRouter();
+    const [attachments, setAttachments] = useState<{ name: string; size: string; file: File }[]>([]);
+    const [resources, setResources] = useState<{ name: string; type: string }[]>([]);
     const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
     const [newResourceName, setNewResourceName] = useState("");
+    const [consultationId, setConsultationId] = useState("");
+    const [reportTitle, setReportTitle] = useState("");
+    const [conversation, setConversation] = useState("");
+    const [sending, setSending] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-            setAttachments([...attachments, { name: file.name, size: `${sizeInMB} MB` }]);
+            setAttachments([...attachments, { name: file.name, size: `${sizeInMB} MB`, file }]);
         }
     };
 
     const addResource = () => {
         if (newResourceName) {
-            setResources([...resources, { name: newResourceName, type: newResourceName.endsWith(".pdf") ? "pdf" : "link" }]);
+            setResources([...resources, { name: newResourceName, type: newResourceName.includes("http") ? "link" : "pdf" }]);
             setNewResourceName("");
             setIsResourceDialogOpen(false);
+        }
+    };
+
+    const handleFinalize = async () => {
+        if (!consultationId) {
+            toast.error("Please select a consultation.");
+            return;
+        }
+
+        setSending(true);
+        try {
+            // In a real scenario, we might need to upload images to a storage service first
+            // and get URLs, but for now we follow the user's requested body structure.
+            const payload = {
+                consultationId,
+                conversation: `${reportTitle}\n\n${conversation}`,
+                links: resources.filter(r => r.type === "link").map(r => r.name),
+                images: [] // images logic would go here if backend supports direct upload or URLs
+            };
+
+            console.log("Sending report payload:", payload);
+            const response = await api.post("/report", payload);
+            
+            if (response.data.success) {
+                toast.success("Consultation report finalized successfully!");
+                // Optionally redirect or clear form
+                setTimeout(() => {
+                    router.push('/consultant/overview');
+                }, 2000);
+            }
+        } catch (error: any) {
+            console.error("Error finalizing report:", error);
+            toast.error(error.response?.data?.message || "Failed to finalize report.");
+        } finally {
+            setSending(false);
         }
     };
 
@@ -58,7 +101,7 @@ export default function ReportsPage() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-slate-50/50 p-6 md:p-8 lg:p-10 space-y-8">
+        <div className="flex flex-col min-h-screen bg-slate-50/50 p-6 md:p-8 lg:p-10 space-y-8 animate-in fade-in duration-500">
             {/* Header section */}
             <div className="flex justify-between items-start">
                 <div>
@@ -68,22 +111,19 @@ export default function ReportsPage() {
             </div>
 
             {/* Main Content Card */}
-            <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white">
+            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
                 <CardContent className="p-0">
                     {/* Top Selects Section */}
                     <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <Label htmlFor="client" className="text-sm font-medium text-slate-700">Client</Label>
-                            <Select defaultValue="michael-chen">
-                                <SelectTrigger id="client" className="h-12 rounded-xl bg-slate-50 border-slate-100 focus:ring-blue-500/20">
-                                    <SelectValue placeholder="Select a client" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-slate-200">
-                                    <SelectItem value="michael-chen">Michael Chen</SelectItem>
-                                    <SelectItem value="sarah-johnson">Sarah Johnson</SelectItem>
-                                    <SelectItem value="james-wilson">James Wilson</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <Label htmlFor="client" className="text-sm font-medium text-slate-700">Consultation ID</Label>
+                            <Input 
+                                id="consultationId"
+                                className="h-12 rounded-xl bg-slate-50 border-slate-100 focus:ring-blue-500/20"
+                                value={consultationId}
+                                onChange={(e) => setConsultationId(e.target.value)}
+                                placeholder="Enter consultation ID..."
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="template" className="text-sm font-medium text-slate-700">Template</Label>
@@ -110,17 +150,15 @@ export default function ReportsPage() {
                                 <Input 
                                     className="text-2xl font-bold border-none p-0 focus-visible:ring-0 placeholder:text-slate-300 h-auto"
                                     placeholder="Report Title..."
-                                    defaultValue="Tax Strategy Summary - Q3 2023"
+                                    value={reportTitle}
+                                    onChange={(e) => setReportTitle(e.target.value)}
                                 />
                                 <div className="space-y-4 text-slate-600 leading-relaxed font-sans">
                                     <Textarea 
                                         className="min-h-[400px] text-lg border-none p-0 focus-visible:ring-0 resize-none placeholder:text-slate-300"
                                         placeholder="Start typing your report here..."
-                                        defaultValue={`Executive Summary
-Based on our consultation today, the following key points were discussed regarding your Q3 tax deductions.
-
-1. Freelance Income Deductions
-We reviewed the expenses associated with your home office...`}
+                                        value={conversation}
+                                        onChange={(e) => setConversation(e.target.value)}
                                     />
                                 </div>
                             </div>
@@ -180,7 +218,7 @@ We reviewed the expenses associated with your home office...`}
                             {/* Resources */}
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
-                                    <Link className="h-4 w-4 text-slate-500" />
+                                    <LinkIcon className="h-4 w-4 text-slate-500" />
                                     <span>Resources</span>
                                 </div>
                                 <div className="space-y-3">
@@ -191,7 +229,7 @@ We reviewed the expenses associated with your home office...`}
                                                     "h-8 w-8 rounded-lg flex items-center justify-center",
                                                     resource.type === "pdf" ? "bg-red-50 text-red-500" : "bg-blue-50 text-blue-500"
                                                 )}>
-                                                    {resource.type === "pdf" ? <FileText className="h-4 w-4" /> : <Link className="h-4 w-4" />}
+                                                    {resource.type === "pdf" ? <FileText className="h-4 w-4" /> : <LinkIcon className="h-4 w-4" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-xs font-medium text-slate-700 truncate">{resource.name}</p>
@@ -226,7 +264,7 @@ We reviewed the expenses associated with your home office...`}
 
             {/* Add Resource Dialog */}
             <Dialog open={isResourceDialogOpen} onOpenChange={setIsResourceDialogOpen}>
-                <DialogContent className="sm:max-w-[425px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+                <DialogContent className="sm:max-w-[425px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
                     <DialogHeader className="p-6 border-b border-slate-50">
                         <DialogTitle className="text-xl font-bold text-slate-900">Add Resource</DialogTitle>
                     </DialogHeader>
@@ -255,9 +293,13 @@ We reviewed the expenses associated with your home office...`}
                     <Eye className="mr-2 h-4 w-4" />
                     Preview
                 </Button>
-                <Button className="h-12 px-8 rounded-xl bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-200 transition-all font-semibold border-none">
+                <Button 
+                    onClick={handleFinalize}
+                    disabled={sending}
+                    className="h-12 px-8 rounded-xl bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-200 transition-all font-semibold border-none disabled:opacity-50"
+                >
                     <Send className="mr-2 h-4 w-4" />
-                    Finalize & Send
+                    {sending ? "Sending..." : "Finalize & Send"}
                 </Button>
             </div>
         </div>
