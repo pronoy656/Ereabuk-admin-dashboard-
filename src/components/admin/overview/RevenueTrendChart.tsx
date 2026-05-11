@@ -1,28 +1,38 @@
 "use client";
-import React from "react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
-import { MoreHorizontal } from "lucide-react";
 
-const chartData = [
-  { month: "Jan", revenue: 2500 },
-  { month: "Feb", revenue: 1800 },
-  { month: "Mar", revenue: 1500 },
-  { month: "Apr", revenue: 7500 },
-  { month: "May", revenue: 9800 },
-  { month: "Jun", revenue: 5000 },
-  { month: "Jul", revenue: 4200 },
-  { month: "Aug", revenue: 4500 },
-  { month: "Sep", revenue: 4800 },
-  { month: "Oct", revenue: 4200 },
-  { month: "Nov", revenue: 4000 },
-  { month: "Dec", revenue: 4500 },
-];
+import React, { useState, useEffect } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { MoreHorizontal, Loader2 } from "lucide-react";
+import api from "@/lib/axios";
+import { toast } from "sonner";
+
+interface RevenueData {
+  month: string;
+  revenue: number;
+}
 
 export function RevenueTrendChart() {
-  const [mounted, setMounted] = React.useState(false);
+  const [data, setData] = useState<RevenueData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
-  React.useEffect(() => {
+  const fetchRevenueTrend = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get("/admin/revenue-trend");
+      if (response.data.success) {
+        setData(response.data.data);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch revenue trend");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     setMounted(true);
+    fetchRevenueTrend();
   }, []);
 
   if (!mounted) return <div className="h-[520px] bg-white rounded-[24px] shadow-sm animate-pulse" />;
@@ -36,9 +46,15 @@ export function RevenueTrendChart() {
         </button>
       </div>
       <div className="px-10 pb-10 pt-6">
-        <div className="h-[400px] w-full min-h-[300px]">
+        <div className="h-[400px] w-full min-h-[300px] flex items-center justify-center">
+          {loading ? (
+            <div className="flex flex-col items-center gap-2">
+               <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+               <p className="text-sm text-slate-400 font-medium">Loading trend data...</p>
+            </div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
@@ -55,7 +71,8 @@ export function RevenueTrendChart() {
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fill: '#94a3b8', fontSize: 13, fontWeight: 500 }}
-                dy={20}
+                dy={10}
+                tickFormatter={(val) => val.substring(0, 3)}
               />
               <YAxis 
                 axisLine={false} 
@@ -63,7 +80,6 @@ export function RevenueTrendChart() {
                 tickFormatter={(value) => `€${value}`}
                 tick={{ fill: '#94a3b8', fontSize: 13, fontWeight: 500 }}
                 dx={-10}
-                ticks={[0, 2500, 5000, 7500, 10000]}
               />
               <Tooltip 
                 contentStyle={{ 
@@ -86,6 +102,7 @@ export function RevenueTrendChart() {
               />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>
