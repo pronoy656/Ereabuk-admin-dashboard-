@@ -56,6 +56,25 @@ export default function UsersTable() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
+  // Signup & OTP State
+  const [isOtpOpen, setIsOtpOpen] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "CONSULTANT",
+    phoneNumber: "",
+    professionalDetails: "",
+    specialization: "",
+    subSpeciality: "",
+    experience: "",
+    bio: "",
+  });
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -103,6 +122,68 @@ export default function UsersTable() {
   }, [activeTab, searchQuery]);
 
   // Handlers for actions
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSigningUp(true);
+      const response = await api.post("/user", {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        // Backend might support more fields, but user only provided these 4
+      });
+
+      if (response.data.success) {
+        toast.success("Signup successful! Please verify your email.");
+        setIsAddOpen(false);
+        setIsOtpOpen(true);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to sign up consultant");
+    } finally {
+      setIsSigningUp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsVerifying(true);
+      const response = await api.post("/auth/verify-email", {
+        email: formData.email,
+        oneTimeCode: Number(otp)
+      });
+
+      if (response.data.success) {
+        toast.success("Email verified successfully! Consultant added.");
+        setIsOtpOpen(false);
+        setOtp("");
+        fetchUsers();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Invalid OTP or verification failed");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      setResendingOtp(true);
+      const response = await api.post("/auth/resend-otp", {
+        email: formData.email
+      });
+      if (response.data.success) {
+        toast.success("OTP resent successfully to your email.");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to resend OTP");
+    } finally {
+      setResendingOtp(false);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (selectedUser) {
       try {
@@ -154,7 +235,7 @@ export default function UsersTable() {
               <DialogTitle className="text-xl font-bold">Add Consultation</DialogTitle>
               <DialogDescription>Add a new consultant or customer to the system.</DialogDescription>
             </DialogHeader>
-            <form className="space-y-4 mt-2">
+            <form onSubmit={handleSignup} className="space-y-4 mt-2">
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-slate-700">Profile Picture</label>
                 <div className="flex items-center gap-4">
@@ -167,31 +248,85 @@ export default function UsersTable() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Full Name</label>
-                  <Input placeholder="John Doe" className="bg-slate-50" />
+                  <Input 
+                    placeholder="John Doe" 
+                    className="bg-slate-50" 
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Email Address</label>
-                  <Input placeholder="john@example.com" type="email" className="bg-slate-50" />
+                  <Input 
+                    placeholder="john@example.com" 
+                    type="email" 
+                    className="bg-slate-50" 
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold text-slate-700">Password</label>
+                  <Input 
+                    placeholder="••••••••" 
+                    type="password" 
+                    className="bg-slate-50" 
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Phone Number</label>
-                  <Input placeholder="+1 (555) 000-0000" className="bg-slate-50" />
+                  <Input 
+                    placeholder="+1 (555) 000-0000" 
+                    className="bg-slate-50" 
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Professional Details</label>
-                  <Input placeholder="E.g. Certified Accountant" className="bg-slate-50" />
+                  <Input 
+                    placeholder="E.g. Certified Accountant" 
+                    className="bg-slate-50" 
+                    value={formData.professionalDetails}
+                    onChange={(e) => setFormData({ ...formData, professionalDetails: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Specialization</label>
-                  <Input placeholder="Tax Consulting" className="bg-slate-50" />
+                  <Input 
+                    placeholder="Tax Consulting" 
+                    className="bg-slate-50" 
+                    value={formData.specialization}
+                    onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Sub-speciality</label>
-                  <Input placeholder="Corporate Tax" className="bg-slate-50" />
+                  <Input 
+                    placeholder="Corporate Tax" 
+                    className="bg-slate-50" 
+                    value={formData.subSpeciality}
+                    onChange={(e) => setFormData({ ...formData, subSpeciality: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700">Years of Experience</label>
-                  <Input placeholder="10" type="number" className="bg-slate-50" />
+                  <Input 
+                    placeholder="10" 
+                    type="number" 
+                    className="bg-slate-50" 
+                    value={formData.experience}
+                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold text-slate-700">Role</label>
+                  <Input value="CONSULTANT" readOnly className="bg-slate-100 cursor-not-allowed font-bold text-slate-500" />
                 </div>
               </div>
               <div className="space-y-1 pt-2">
@@ -199,6 +334,8 @@ export default function UsersTable() {
                 <textarea 
                   className="w-full h-24 p-3 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   placeholder="Brief description about the consultant..."
+                  value={formData.bio}
+                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 />
               </div>
 
@@ -211,11 +348,69 @@ export default function UsersTable() {
                   Cancel
                 </button>
                 <button 
-                  type="button"
-                  onClick={() => setIsAddOpen(false)}
-                  className="bg-[#FE6D2C] hover:bg-[#E85D20] text-white px-6 py-2 rounded-xl font-bold shadow-sm shadow-[#FE6D2C]/20 transition-transform active:scale-95"
+                  type="submit"
+                  disabled={isSigningUp}
+                  className="bg-[#FE6D2C] hover:bg-[#E85D20] text-white px-6 py-2 rounded-xl font-bold shadow-sm shadow-[#FE6D2C]/20 transition-transform active:scale-95 flex items-center gap-2"
                 >
-                  Save Consultation
+                  {isSigningUp ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing up...
+                    </>
+                  ) : (
+                    "Signup Consultant"
+                  )}
+                </button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* OTP Verification Dialog */}
+        <Dialog open={isOtpOpen} onOpenChange={setIsOtpOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Email Verification</DialogTitle>
+              <DialogDescription>
+                We've sent an OTP to <span className="font-bold text-slate-900">{formData.email}</span>. Please enter it below to verify the consultant account.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleVerifyOtp} className="space-y-6 py-4">
+              <div className="space-y-2 text-center">
+                <Input
+                  type="text"
+                  maxLength={6}
+                  placeholder="000000"
+                  className="text-center text-3xl font-black tracking-[1em] h-16 bg-slate-50 border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:tracking-normal placeholder:text-slate-300"
+                  required
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                />
+                <p className="text-sm text-slate-500">Enter the 6-digit code</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  type="submit"
+                  disabled={isVerifying}
+                  className="w-full bg-[#FE6D2C] hover:bg-[#E85D20] text-white py-3 rounded-2xl font-bold shadow-lg shadow-[#FE6D2C]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70"
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    "Verify & Complete Signup"
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendingOtp}
+                  className="w-full text-sm font-bold text-blue-600 hover:text-blue-700 py-2 disabled:opacity-50"
+                >
+                  {resendingOtp ? "Sending..." : "Didn't receive code? Resend OTP"}
                 </button>
               </div>
             </form>
