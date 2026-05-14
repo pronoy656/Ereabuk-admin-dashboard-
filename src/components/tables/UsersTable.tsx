@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Search, Eye, Trash2, Plus, Pencil, AlertCircle, Loader2 } from "lucide-react";
+import { Search, Eye, Trash2, Plus, AlertCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
@@ -53,10 +53,10 @@ export default function UsersTable() {
   // Selected user for row actions
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   // Signup & OTP State
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isOtpOpen, setIsOtpOpen] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -187,6 +187,7 @@ export default function UsersTable() {
   const handleDeleteConfirm = async () => {
     if (selectedUser) {
       try {
+        setIsDeleting(true);
         const response = await api.delete(`/user/${selectedUser._id}`);
         if (response.data.success) {
           toast.success("User deleted successfully");
@@ -196,6 +197,8 @@ export default function UsersTable() {
         }
       } catch (error: any) {
         toast.error(error.response?.data?.message || "Failed to delete user");
+      } finally {
+        setIsDeleting(false);
       }
     }
   };
@@ -542,16 +545,6 @@ export default function UsersTable() {
                         <button
                           onClick={() => {
                             setSelectedUser(user);
-                            setIsEditOpen(true);
-                          }}
-                          className="p-1 hover:bg-orange-50 rounded-md hover:text-orange-500 transition-colors"
-                          aria-label="Edit User"
-                        >
-                          <Pencil className="w-4 h-4 text-orange-500" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
                             setIsDeleteOpen(true);
                           }}
                           className="p-1 hover:bg-red-50 rounded-md hover:text-red-500 transition-colors"
@@ -678,64 +671,6 @@ export default function UsersTable() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Edit User</DialogTitle>
-            <DialogDescription>Update the details for {selectedUser?.name}.</DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4 mt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Full Name</label>
-                <Input defaultValue={selectedUser?.name} className="bg-slate-50" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Email Address</label>
-                <Input defaultValue={selectedUser?.email} type="email" className="bg-slate-50" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Role</label>
-                <select 
-                  defaultValue={selectedUser?.role}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                >
-                   <option value="CONSULTANT">Consultant</option>
-                   <option value="USER">Customer</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Status</label>
-                <select 
-                  defaultValue={selectedUser?.status}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                >
-                   <option value="active">Active</option>
-                   <option value="pending">Pending</option>
-                   <option value="suspended">Suspended</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-end gap-3">
-              <button 
-                type="button" 
-                onClick={() => setIsEditOpen(false)}
-                className="px-4 py-2 font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold shadow-sm shadow-blue-600/20 transition-transform active:scale-95"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
@@ -758,9 +693,17 @@ export default function UsersTable() {
             </button>
             <button 
               onClick={handleDeleteConfirm}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-xl font-bold shadow-sm shadow-red-500/20 transition-colors"
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-xl font-bold shadow-sm shadow-red-500/20 transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-70"
             >
-              Delete User
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete User"
+              )}
             </button>
           </div>
         </DialogContent>
