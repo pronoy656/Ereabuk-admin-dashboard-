@@ -2,95 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Video, Calendar, PhoneCall, User, Clock, Check, X } from 'lucide-react';
+import { Video, Calendar, PhoneCall, User, Clock, Check, X, Loader2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import api from '@/lib/axios';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 interface RequestData {
   id: string;
   tabType: "Instant" | "Schedule" | "Callback";
   name: string;
+  image?: string;
   requestType: string;
   time: string;
   scheduledAt?: number; // timestamp for countdown
   notes: string;
-  status: "pending" | "accepted";
+  status: "pending" | "accepted" | string;
 }
 
-// Ensure mock timestamps generate relative to the immediate time of runtime
-const currentTs = Date.now();
-
-const initialRequests: RequestData[] = [
-  {
-    id: "REQ-001",
-    tabType: "Instant",
-    name: "David Smith",
-    requestType: "Quick Advice",
-    time: "Right Now",
-    scheduledAt: currentTs, // Ready immediately
-    notes: "Urgent question regarding property law.",
-    status: "pending"
-  },
-  {
-    id: "REQ-002",
-    tabType: "Instant",
-    name: "Sarah Jenkins",
-    requestType: "Tax Consultation",
-    time: "Right Now",
-    scheduledAt: currentTs,
-    notes: "Need immediate assistance filing an extension.",
-    status: "pending"
-  },
-  {
-    id: "REQ-003",
-    tabType: "Schedule",
-    name: "Michael Chang",
-    requestType: "Contract Review",
-    time: "In 15 seconds", // Giving a fast scenario to test the live transition to 'Join Call'
-    scheduledAt: currentTs + 15 * 1000, 
-    notes: "Reviewing vendor agreement for new startup.",
-    status: "pending"
-  },
-  {
-    id: "REQ-004",
-    tabType: "Schedule",
-    name: "Elena Rodriguez",
-    requestType: "General Legal",
-    time: "In 3 minutes", // Short minutes delay
-    scheduledAt: currentTs + 3 * 60 * 1000,
-    notes: "Discussing LLC formation.",
-    status: "pending"
-  },
-  {
-    id: "REQ-005",
-    tabType: "Schedule",
-    name: "Amanda Lee",
-    requestType: "Immigration",
-    time: "In 2 hours", // Hours delay
-    scheduledAt: currentTs + 2 * 60 * 60 * 1000,
-    notes: "Visa renewal process questions.",
-    status: "pending"
-  },
-  {
-    id: "REQ-006",
-    tabType: "Schedule",
-    name: "Robert Black",
-    requestType: "Real Estate",
-    time: "In 3 days", // Days delay
-    scheduledAt: currentTs + 3 * 24 * 60 * 60 * 1000,
-    notes: "Closing document evaluation.",
-    status: "pending"
-  },
-  {
-    id: "REQ-007",
-    tabType: "Callback",
-    name: "Jessica Alba",
-    requestType: "Follow-up",
-    time: "As soon as possible",
-    scheduledAt: currentTs,
-    notes: "Missed your previous call, please ring back.",
-    status: "pending"
-  }
-];
 
 // Helper Component to handle independent Live Countdowns and State Transitions for accepted requests
 const AcceptedActionState = ({ req }: { req: RequestData }) => {
@@ -151,20 +80,105 @@ const AcceptedActionState = ({ req }: { req: RequestData }) => {
 
 
 export default function IncomingRequests() {
-  const [requests, setRequests] = useState<RequestData[]>(initialRequests);
+  const [requests, setRequests] = useState<RequestData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"Instant" | "Schedule" | "Callback">("Instant");
+  const [counts, setCounts] = useState({ Instant: 0, Schedule: 0, Callback: 0 });
 
-  const handleAccept = (id: string) => {
+  const fetchAllCounts = async () => {
+    try {
+      const response = await api.get("/consultation/my-bookings");
+      if (response.data.success) {
+        const allData = response.data.data;
+        setCounts({
+          Instant: allData.filter((r: any) => r.bookingType === "instant" && r.status === "pending").length,
+          Schedule: allData.filter((r: any) => r.bookingType === "scheduled" && r.status === "pending").length,
+          Callback: allData.filter((r: any) => r.bookingType === "callback" && r.status === "pending").length,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch counts", error);
+    }
+  };
+
+  const fetchRequests = async (type: string) => {
+    try {
+      setLoading(true);
+      const bookingTypeMap: any = {
+        Instant: "instant",
+        Schedule: "scheduled",
+        Callback: "callback"
+      };
+      
+      const response = await api.get("/consultation/my-bookings", {
+        params: { bookingType: bookingTypeMap[type] }
+      });
+
+      if (response.data.success) {
+        const mappedData = response.data.data.map((item: any) => {
+          let timeDisplay = "Instant";
+          let scheduledAt = new Date(item.createdAt).getTime();
+
+          if (item.bookingType === "scheduled") {
+            timeDisplay = `${item.startTime} - ${item.endTime}, ${format(new Date(item.date), 'MMM dd, yyyy')}`;
+            if (item.date && item.startTime) {
+              const datePart = item.date.split('T')[0];
+              scheduledAt = new Date(`${datePart}T${item.startTime}:00`).getTime();
+            }
+          } else if (item.bookingType === "callback") {
+            timeDisplay = item.preferredWindow || "Today";
+          }
+
+          return {
+            id: item._id,
+            tabType: type,
+            name: item.user?.name || "Guest User",
+            image: item.user?.image || item.user?.avatar,
+            requestType: item.bookingType.charAt(0).toUpperCase() + item.bookingType.slice(1),
+            time: timeDisplay,
+            scheduledAt,
+            notes: item.notes || "No additional notes.",
+            status: item.status, // Keeping backend status
+          };
+        });
+        setRequests(mappedData);
+        
+        // Update the count for the active tab specifically
+        setCounts(prev => ({
+           ...prev,
+           [type]: mappedData.filter((r: any) => r.status === "pending").length
+        }));
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch bookings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllCounts();
+  }, []);
+
+  useEffect(() => {
+    fetchRequests(activeTab);
+  }, [activeTab]);
+
+  const handleAccept = async (id: string) => {
+    // For now, updating local state as no accept API was provided
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status: "accepted" } : r));
+    toast.success("Request accepted!");
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
+    // For now, updating local state as no reject API was provided
     setRequests(prev => prev.filter(r => r.id !== id));
+    toast.success("Request rejected.");
   };
 
-  const instantCount = requests.filter(r => r.tabType === "Instant" && r.status === "pending").length;
-  const scheduleCount = requests.filter(r => r.tabType === "Schedule" && r.status === "pending").length;
-  const callbackCount = requests.filter(r => r.tabType === "Callback" && r.status === "pending").length;
+  const instantCount = counts.Instant;
+  const scheduleCount = counts.Schedule;
+  const callbackCount = counts.Callback;
 
   const currentRequests = requests.filter(r => r.tabType === activeTab);
 
@@ -243,21 +257,30 @@ export default function IncomingRequests() {
         </div>
 
         {/* Requests List */}
-        <div className="p-4 sm:p-6 space-y-4 bg-[#FAFAFA] min-h-[400px]">
-          {currentRequests.length === 0 ? (
+        <div className="p-4 sm:p-6 space-y-4 bg-[#FAFAFA] min-h-[400px] flex flex-col">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center bg-white rounded-2xl border border-slate-100 shadow-sm">
+               <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
+               <p className="text-slate-500 font-medium">Fetching requests...</p>
+            </div>
+          ) : requests.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center bg-white rounded-2xl border border-slate-100 shadow-sm">
               <p className="text-slate-500 font-medium">No pending requests in this category.</p>
             </div>
           ) : (
-            currentRequests.map((req) => (
+            requests.map((req) => (
               <div
                 key={req.id}
                 className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row md:items-center justify-between gap-6"
               >
                 {/* Left side details */}
                 <div className="flex gap-4">
-                  <div className="shrink-0 w-14 h-14 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
-                    <User className="w-6 h-6" />
+                  <div className="shrink-0 w-14 h-14 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden">
+                    {req.image ? (
+                      <img src={req.image} alt={req.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-6 h-6" />
+                    )}
                   </div>
 
                   <div className="space-y-2">
