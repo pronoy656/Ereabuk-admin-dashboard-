@@ -156,6 +156,26 @@ export default function IncomingRequests() {
     }
   };
 
+  const [processing, setProcessing] = useState<{ id: string, type: 'accept' | 'reject' } | null>(null);
+
+  const handleStatusUpdate = async (id: string, status: string, type: 'accept' | 'reject') => {
+    try {
+      setProcessing({ id, type });
+      const response = await api.patch(`/consultation/status/${id}`, { status });
+      if (response.data.success) {
+        toast.success(`Booking ${status} successfully!`);
+        // Update local state
+        setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+        // Refresh counts to stay in sync
+        fetchAllCounts();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || `Failed to update booking status`);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   useEffect(() => {
     fetchAllCounts();
   }, []);
@@ -165,15 +185,13 @@ export default function IncomingRequests() {
   }, [activeTab]);
 
   const handleAccept = async (id: string) => {
-    // For now, updating local state as no accept API was provided
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: "accepted" } : r));
-    toast.success("Request accepted!");
+    await handleStatusUpdate(id, "accepted", "accept");
   };
 
   const handleReject = async (id: string) => {
-    // For now, updating local state as no reject API was provided
+    await handleStatusUpdate(id, "rejected", "reject");
+    // Remove from local list after successful rejection so it disappears from incoming
     setRequests(prev => prev.filter(r => r.id !== id));
-    toast.success("Request rejected.");
   };
 
   const instantCount = counts.Instant;
@@ -311,15 +329,27 @@ export default function IncomingRequests() {
                       <>
                         <button
                           onClick={() => handleAccept(req.id)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#FE6D2C] hover:bg-[#E85D20] text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-[#FE6D2C]/20 transition-transform active:scale-95"
+                          disabled={processing?.id === req.id}
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#FE6D2C] hover:bg-[#E85D20] text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-[#FE6D2C]/20 transition-transform active:scale-95 disabled:opacity-70"
                         >
-                          <Check className="w-4 h-4" /> Accept
+                          {processing?.id === req.id && processing?.type === 'accept' ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )} 
+                          Accept
                         </button>
                         <button
                           onClick={() => handleReject(req.id)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-8 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                          disabled={processing?.id === req.id}
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-8 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-70"
                         >
-                          <X className="w-4 h-4" /> Reject
+                          {processing?.id === req.id && processing?.type === 'reject' ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4" />
+                          )} 
+                          Reject
                         </button>
                       </>
                    )}
