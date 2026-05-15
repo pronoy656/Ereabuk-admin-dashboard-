@@ -85,74 +85,83 @@ export default function IncomingRequests() {
   const [activeTab, setActiveTab] = useState<"Instant" | "Schedule" | "Callback">("Instant");
   const [counts, setCounts] = useState({ Instant: 0, Schedule: 0, Callback: 0 });
 
-  const fetchAllCounts = async () => {
+  const refreshData = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
+      
       const response = await api.get("/consultation/my-bookings");
+      
       if (response.data.success) {
         const allData = response.data.data;
-        setCounts({
-          Instant: allData.filter((r: any) => r.bookingType === "instant" && r.status === "pending").length,
-          Schedule: allData.filter((r: any) => r.bookingType === "scheduled" && r.status === "pending").length,
-          Callback: allData.filter((r: any) => r.bookingType === "callback" && r.status === "pending").length,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to fetch counts", error);
-    }
-  };
-
-  const fetchRequests = async (type: string) => {
-    try {
-      setLoading(true);
-      const bookingTypeMap: any = {
-        Instant: "instant",
-        Schedule: "scheduled",
-        Callback: "callback"
-      };
-      
-      const response = await api.get("/consultation/my-bookings", {
-        params: { bookingType: bookingTypeMap[type] }
-      });
-
-      if (response.data.success) {
-        const mappedData = response.data.data.map((item: any) => {
-          let timeDisplay = "Instant";
-          let scheduledAt = new Date(item.createdAt).getTime();
-
-          if (item.bookingType === "scheduled") {
-            timeDisplay = `${item.startTime} - ${item.endTime}, ${format(new Date(item.date), 'MMM dd, yyyy')}`;
-            if (item.date && item.startTime) {
-              const datePart = item.date.split('T')[0];
-              scheduledAt = new Date(`${datePart}T${item.startTime}:00`).getTime();
-            }
-          } else if (item.bookingType === "callback") {
-            timeDisplay = item.preferredWindow || "Today";
-          }
-
-          return {
-            id: item._id,
-            tabType: type,
-            name: item.user?.name || "Guest User",
-            image: item.user?.image || item.user?.avatar,
-            requestType: item.bookingType.charAt(0).toUpperCase() + item.bookingType.slice(1),
-            time: timeDisplay,
-            scheduledAt,
-            notes: item.notes || "No additional notes.",
-            status: item.status, // Keeping backend status
-          };
-        });
-        setRequests(mappedData);
         
-        // Update the count for the active tab specifically
-        setCounts(prev => ({
-           ...prev,
-           [type]: mappedData.filter((r: any) => r.status === "pending").length
-        }));
+        // 1. Update Counts (all that are not yet accepted or rejected)
+        const newCounts = {
+          Instant: allData.filter((r: any) => 
+            r.bookingType?.toLowerCase() === "instant" && 
+            r.status?.toLowerCase() !== "accepted" && 
+            r.status?.toLowerCase() !== "rejected"
+          ).length,
+          Schedule: allData.filter((r: any) => 
+            (r.bookingType?.toLowerCase() === "scheduled" || r.bookingType?.toLowerCase() === "schedule") && 
+            r.status?.toLowerCase() !== "accepted" && 
+            r.status?.toLowerCase() !== "rejected"
+          ).length,
+          Callback: allData.filter((r: any) => 
+            r.bookingType?.toLowerCase() === "callback" && 
+            r.status?.toLowerCase() !== "accepted" && 
+            r.status?.toLowerCase() !== "rejected"
+          ).length,
+        };
+        setCounts(newCounts);
+
+        // 2. Filter data for the current active tab
+        const bookingTypeMap: any = {
+          Instant: ["instant"],
+          Schedule: ["scheduled", "schedule"],
+          Callback: ["callback"]
+        };
+        
+        const currentTabTypes = bookingTypeMap[activeTab];
+        
+        const mappedData = allData
+          .filter((item: any) => 
+            currentTabTypes.includes(item.bookingType?.toLowerCase()) &&
+            item.status?.toLowerCase() !== "rejected"
+          )
+          .map((item: any) => {
+            let timeDisplay = "Instant";
+            let scheduledAt = new Date(item.createdAt).getTime();
+
+            if (item.bookingType?.toLowerCase() === "scheduled" || item.bookingType?.toLowerCase() === "schedule") {
+              timeDisplay = `${item.startTime} - ${item.endTime}, ${format(new Date(item.date), 'MMM dd, yyyy')}`;
+              if (item.date && item.startTime) {
+                const datePart = item.date.split('T')[0];
+                scheduledAt = new Date(`${datePart}T${item.startTime}:00`).getTime();
+              }
+            } else if (item.bookingType?.toLowerCase() === "callback") {
+              timeDisplay = item.preferredWindow || "Today";
+            }
+
+            return {
+              id: item._id,
+              tabType: activeTab,
+              name: item.user?.name || "Guest User",
+              image: item.user?.image || item.user?.avatar,
+              requestType: (item.bookingType || "Request").charAt(0).toUpperCase() + (item.bookingType || "Request").slice(1),
+              time: timeDisplay,
+              scheduledAt,
+              notes: item.notes || "No additional notes.",
+              status: item.status,
+            };
+          });
+        
+        setRequests(mappedData);
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to fetch bookings");
+      if (!silent) toast.error(error.response?.data?.message || "Failed to fetch bookings");
+      console.error("Fetch Error:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -164,10 +173,8 @@ export default function IncomingRequests() {
       const response = await api.patch(`/consultation/status/${id}`, { status });
       if (response.data.success) {
         toast.success(`Booking ${status} successfully!`);
-        // Update local state
-        setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-        // Refresh counts to stay in sync
-        fetchAllCounts();
+        // Refresh data to stay in sync
+        refreshData(true);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || `Failed to update booking status`);
@@ -177,11 +184,14 @@ export default function IncomingRequests() {
   };
 
   useEffect(() => {
-    fetchAllCounts();
-  }, []);
+    refreshData();
 
-  useEffect(() => {
-    fetchRequests(activeTab);
+    // Set up real-time polling every 10 seconds
+    const interval = setInterval(() => {
+      refreshData(true); // Silent update
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [activeTab]);
 
   const handleAccept = async (id: string) => {
