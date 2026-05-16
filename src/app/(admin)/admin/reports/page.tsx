@@ -69,8 +69,8 @@ export default function AdminReportsPage() {
     }, []);
 
     const filteredReports = reports.filter(report => 
-        report.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        report.consultant.name.toLowerCase().includes(searchQuery.toLowerCase())
+        (report.user?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (report.consultant?.name || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const handleViewDetails = (report: Report) => {
@@ -120,15 +120,15 @@ export default function AdminReportsPage() {
                                     <div className="flex items-center gap-3">
                                         <div className="flex -space-x-3">
                                             <div className="h-10 w-10 rounded-xl border-2 border-white bg-blue-50 flex items-center justify-center shadow-sm overflow-hidden ring-1 ring-slate-100">
-                                                {report.user.image ? <img src={report.user.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-blue-500" />}
+                                                {report.user?.image ? <img src={report.user.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-blue-500" />}
                                             </div>
                                             <div className="h-10 w-10 rounded-xl border-2 border-white bg-emerald-50 flex items-center justify-center shadow-sm overflow-hidden relative z-10 ring-1 ring-slate-100">
-                                                {report.consultant.image ? <img src={report.consultant.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-emerald-500" />}
+                                                {report.consultant?.image ? <img src={report.consultant.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-emerald-500" />}
                                             </div>
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">{report.user.name}</p>
-                                            <p className="text-[11px] text-slate-400 font-medium truncate">w/ {report.consultant.name}</p>
+                                            <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">{report.user?.name || "Unknown User"}</p>
+                                            <p className="text-[11px] text-slate-400 font-medium truncate">w/ {report.consultant?.name || "Unknown Consultant"}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -215,18 +215,18 @@ export default function AdminReportsPage() {
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">User</p>
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm">
-                                            {selectedReport.user.image ? <img src={selectedReport.user.image} alt="" /> : <User className="w-5 h-5 text-slate-400" />}
+                                            {selectedReport.user?.image ? <img src={selectedReport.user.image} alt="" /> : <User className="w-5 h-5 text-slate-400" />}
                                         </div>
-                                        <p className="text-sm font-bold text-slate-800">{selectedReport.user.name}</p>
+                                        <p className="text-sm font-bold text-slate-800">{selectedReport.user?.name || "Unknown User"}</p>
                                     </div>
                                 </div>
                                 <div className="space-y-3">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Consultant</p>
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm">
-                                            {selectedReport.consultant.image ? <img src={selectedReport.consultant.image} alt="" /> : <User className="w-5 h-5 text-slate-400" />}
+                                            {selectedReport.consultant?.image ? <img src={selectedReport.consultant.image} alt="" /> : <User className="w-5 h-5 text-slate-400" />}
                                         </div>
-                                        <p className="text-sm font-bold text-slate-800">{selectedReport.consultant.name}</p>
+                                        <p className="text-sm font-bold text-slate-800">{selectedReport.consultant?.name || "Unknown Consultant"}</p>
                                     </div>
                                 </div>
                             </div>
