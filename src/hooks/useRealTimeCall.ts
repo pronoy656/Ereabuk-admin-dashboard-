@@ -14,6 +14,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
   const [joined, setJoined] = useState(false);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   
   // Track remote users
   const [remoteUsers, setRemoteUsers] = useState<Record<string, { video?: IRemoteVideoTrack, audio?: IRemoteAudioTrack }>>({});
@@ -34,6 +35,20 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
     const initCall = async () => {
       // Avoid starting the pipeline if unmounted or already connected
       if (!mounted) return;
+      
+      // Native browser media check requested by USER for debugging
+      if (typeof window !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          .then(stream => {
+            console.log("✅ CAMERA/MIC WORKING");
+            console.log(stream);
+          })
+          .catch(err => {
+            console.log("❌ ERROR OCCURRED:", err.name, err.message);
+          });
+      } else {
+        console.log("❌ ERROR OCCURRED: navigator.mediaDevices is undefined (likely non-secure HTTP context)");
+      }
       
       const AgoraMod = await import('agora-rtc-sdk-ng');
       AgoraRTC = AgoraMod.default;
@@ -86,34 +101,66 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       });
 
       try {
-        // Strict Mode connection safety check + Mock Backend Bypass Check
-        const isMockId = appId === "YOUR_AGORA_APP_ID";
+        // Native stream check requested by USER to verify camera/mic access before Agora joins
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+
+          console.log("✅ STREAM GOT:", stream);
+        } catch (err: any) {
+          console.log("❌ CAMERA ERROR:", err?.name, err?.message);
+        }
+
+        if (!appId || !channel || !token) {
+           console.warn("Agora connection aborted: Missing required credentials.", { appId, channel, token });
+           return;
+        }
         
-        if (!isMockId && client.connectionState === 'DISCONNECTED') {
+        if (client.connectionState === 'DISCONNECTED') {
             await client.join(appId, channel, token, uid);
         }
         
         if (!mounted) return;
         
         // Setup local tracks safely maintaining refs (Works completely offline!)
-        if (!localAudioRef.current) {
-           const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-           localAudioRef.current = audioTrack;
-           setLocalAudioTrack(audioTrack);
-        }
-        
-        if (!localVideoRef.current) {
-           const videoTrack = await AgoraRTC.createCameraVideoTrack();
-           localVideoRef.current = videoTrack;
-           setLocalVideoTrack(videoTrack);
+        try {
+
+          if (!localAudioRef.current) {
+             const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+             localAudioRef.current = audioTrack;
+             setLocalAudioTrack(audioTrack);
+          }
+          
+          if (!localVideoRef.current) {
+             const videoTrack = await AgoraRTC.createCameraVideoTrack();
+             localVideoRef.current = videoTrack;
+             setLocalVideoTrack(videoTrack);
+          }
+          setMediaError(null);
+        } catch (mediaErr: any) {
+          console.error("Media Device Error:", mediaErr);
+          let errorMsg = "Could not access camera or microphone. Please ensure permissions are granted.";
+          if (typeof window !== 'undefined' && window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            errorMsg = "Camera/Microphone access is blocked by your browser because you are accessing via HTTP on a non-localhost IP. Please access via http://localhost:3000 or use HTTPS.";
+          } else if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'PermissionDeniedError') {
+            errorMsg = "Camera or Microphone permission was denied by your browser. Please click the site settings icon in the URL bar and allow access.";
+          } else if (mediaErr.name === 'NotFoundError' || mediaErr.name === 'DeviceNotFoundError') {
+            errorMsg = "No camera or microphone device found on your system. Please plug in a device and retry.";
+          } else if (mediaErr.name === 'NotReadableError' || mediaErr.name === 'TrackStartError') {
+            errorMsg = "Your camera or microphone is currently busy or being used by another application (e.g., Zoom, Teams). Please close other apps and retry.";
+          }
+          setMediaError(errorMsg);
         }
         
         // Ensure not attempting to publish if already published or running locally offline
-        if (!isMockId) {
-           const publishPayload = [];
-           if (localAudioRef.current) publishPayload.push(localAudioRef.current);
-           if (localVideoRef.current) publishPayload.push(localVideoRef.current);
-           await client.publish(publishPayload);
+        const publishPayload = [];
+        if (localAudioRef.current) publishPayload.push(localAudioRef.current);
+        if (localVideoRef.current) publishPayload.push(localVideoRef.current);
+        
+        if (publishPayload.length > 0) {
+            await client.publish(publishPayload);
         }
 
         if (mounted) setJoined(true);
@@ -123,12 +170,10 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       }
     };
 
-    if (appId) {
-      // De-bounce initial load to survive React 18 simultaneous Unmount/Mount
-      setTimeout(() => {
-        if (mounted) initCall();
-      }, 50);
-    }
+    // Always run initCall so native camera/mic checks execute immediately
+    setTimeout(() => {
+      if (mounted) initCall();
+    }, 50);
 
     return () => {
       mounted = false;
@@ -200,6 +245,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
     isVideoOff,
     toggleMute,
     toggleVideo,
-    leaveCall
+    leaveCall,
+    mediaError
   };
 }

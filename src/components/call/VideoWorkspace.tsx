@@ -13,6 +13,7 @@ interface VideoWorkspaceProps {
   toggleVideo: () => void;
   leaveCall: () => void;
   joined: boolean;
+  mediaError?: string | null;
 }
 
 export default function VideoWorkspace({
@@ -23,7 +24,8 @@ export default function VideoWorkspace({
   toggleMute,
   toggleVideo,
   leaveCall,
-  joined
+  joined,
+  mediaError
 }: VideoWorkspaceProps) {
   
   // Containers for rendering Agora feeds
@@ -53,6 +55,16 @@ export default function VideoWorkspace({
   return (
     <div className="flex-1 bg-slate-900 relative flex flex-col items-center justify-center min-h-[50vh] lg:min-h-screen border-r border-slate-800 shrink-0">
       
+      {/* Media Device Error Banner */}
+      {mediaError && (
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 z-40 bg-red-500/90 text-white px-6 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border border-red-400 flex items-center gap-3 max-w-lg animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 font-bold text-base">
+            !
+          </div>
+          <p className="text-xs font-semibold leading-relaxed">{mediaError}</p>
+        </div>
+      )}
+
       {/* Remote Video Container (Main) */}
       <div className="absolute inset-0 w-full h-full flex items-center justify-center p-8">
         {!joined ? (

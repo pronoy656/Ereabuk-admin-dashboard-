@@ -69,7 +69,7 @@ const AcceptedActionState = ({ req }: { req: RequestData }) => {
   // Once the time arrives (or if it's an Instant/Callback default)
   return (
     <button
-      onClick={() => router.push('/call')}
+      onClick={() => router.push(`/call?consultationId=${req.id}`)}
       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-emerald-500/20 transition-transform active:scale-95 animate-in zoom-in duration-300"
     >
       {req.tabType === "Callback" ? <PhoneCall className="w-4 h-4" /> : <Video className="w-4 h-4" />} 
@@ -99,16 +99,19 @@ export default function IncomingRequests() {
           Instant: allData.filter((r: any) => 
             r.bookingType?.toLowerCase() === "instant" && 
             r.status?.toLowerCase() !== "accepted" && 
+            r.status?.toLowerCase() !== "confirmed" && 
             r.status?.toLowerCase() !== "rejected"
           ).length,
           Schedule: allData.filter((r: any) => 
             (r.bookingType?.toLowerCase() === "scheduled" || r.bookingType?.toLowerCase() === "schedule") && 
             r.status?.toLowerCase() !== "accepted" && 
+            r.status?.toLowerCase() !== "confirmed" && 
             r.status?.toLowerCase() !== "rejected"
           ).length,
           Callback: allData.filter((r: any) => 
             r.bookingType?.toLowerCase() === "callback" && 
             r.status?.toLowerCase() !== "accepted" && 
+            r.status?.toLowerCase() !== "confirmed" && 
             r.status?.toLowerCase() !== "rejected"
           ).length,
         };
@@ -167,19 +170,28 @@ export default function IncomingRequests() {
 
   const [processing, setProcessing] = useState<{ id: string, type: 'accept' | 'reject' } | null>(null);
 
-  const handleStatusUpdate = async (id: string, status: string, type: 'accept' | 'reject') => {
+  const handleStatusUpdate = async (id: string, status: string, type: 'accept' | 'reject', shouldRefresh = true) => {
     try {
+      console.log(`[Status Update] Sending PATCH request to /consultation/status/${id}`);
+      console.log(`[Status Update] Request Body:`, { status });
       setProcessing({ id, type });
       const response = await api.patch(`/consultation/status/${id}`, { status });
       if (response.data.success) {
-        toast.success(`Booking ${status} successfully!`);
-        // Refresh data to stay in sync
-        refreshData(true);
+        if (shouldRefresh) {
+          toast.success(`Booking ${status} successfully!`);
+          refreshData(true);
+        }
+        return true;
       }
+      return false;
     } catch (error: any) {
+      console.error("[Status Update Error]:", error.response?.data || error.message);
       toast.error(error.response?.data?.message || `Failed to update booking status`);
+      return false;
     } finally {
-      setProcessing(null);
+      if (shouldRefresh) {
+        setProcessing(null);
+      }
     }
   };
 
@@ -195,7 +207,14 @@ export default function IncomingRequests() {
   }, [activeTab]);
 
   const handleAccept = async (id: string) => {
-    await handleStatusUpdate(id, "accepted", "accept");
+    // First mark as accepted
+    const success = await handleStatusUpdate(id, "accepted", "accept", false);
+    if (success) {
+      // Then immediately move to confirmed to keep mobile app in sync
+      await handleStatusUpdate(id, "confirmed", "accept", true);
+    } else {
+      setProcessing(null);
+    }
   };
 
   const handleReject = async (id: string) => {
@@ -333,7 +352,7 @@ export default function IncomingRequests() {
 
                 {/* Right side actions */}
                 <div className="flex flex-row md:flex-col gap-3 shrink-0 self-start md:self-center w-full md:w-auto">
-                  {req.status === "accepted" ? (
+                  {req.status === "accepted" || req.status === "confirmed" ? (
                       <AcceptedActionState req={req} />
                     ) : (
                       <>
