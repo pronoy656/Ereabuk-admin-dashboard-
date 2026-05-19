@@ -152,7 +152,9 @@ function CallPageContent() {
     uid: null
   });
 
-  const firstRemoteUser = Object.values(remoteUsers)[0];
+  const remoteUsersList = Object.values(remoteUsers);
+  const hasRemoteUserJoined = remoteUsersList.length > 0;
+  const firstRemoteUser = remoteUsersList[0];
 
   const handleEndCall = async () => {
     if (sessionData?.sessionId) {
@@ -188,7 +190,7 @@ function CallPageContent() {
   if (error || !sessionData) {
     const isEnded = error?.toLowerCase().includes('ended');
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-slate-950 text-white p-4 select-none">
+      <div className="w-full h-screen flex items-center justify-center bg-slate-955 text-white p-4 select-none">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl flex flex-col items-center gap-5 text-center max-w-md w-full shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-300">
            <div className={`w-16 h-16 rounded-full border flex items-center justify-center mb-2 font-bold text-3xl shadow-inner ${isEnded ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
              {isEnded ? "🔒" : "!"}
@@ -208,7 +210,7 @@ function CallPageContent() {
            >
              Return to Dashboard
            </button>
-        </div>
+         </div>
       </div>
     );
   }
@@ -227,6 +229,7 @@ function CallPageContent() {
         leaveCall={handleEndCall}
         joined={joined}
         mediaError={mediaError}
+        hasRemoteUserJoined={hasRemoteUserJoined}
       />
 
       {/* 📊 Right Section (Context & Transcription) */}

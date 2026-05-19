@@ -14,6 +14,7 @@ interface VideoWorkspaceProps {
   leaveCall: () => void;
   joined: boolean;
   mediaError?: string | null;
+  hasRemoteUserJoined: boolean;
 }
 
 export default function VideoWorkspace({
@@ -25,7 +26,8 @@ export default function VideoWorkspace({
   toggleVideo,
   leaveCall,
   joined,
-  mediaError
+  mediaError,
+  hasRemoteUserJoined
 }: VideoWorkspaceProps) {
   
   // Containers for rendering Agora feeds
@@ -72,12 +74,27 @@ export default function VideoWorkspace({
              <span className="w-3 h-3 rounded-full bg-blue-500 animate-ping" />
              Connecting...
            </div>
-        ) : !remoteVideoTrack ? (
+        ) : !hasRemoteUserJoined ? (
            <div className="text-slate-400 font-medium flex flex-col items-center gap-3">
              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700">
                <VideoOff className="w-8 h-8 text-slate-500" />
              </div>
              Waiting for others to join...
+           </div>
+        ) : !remoteVideoTrack ? (
+           <div className="text-slate-400 font-medium flex flex-col items-center gap-4 text-center max-w-sm animate-in fade-in zoom-in-95 duration-300">
+             <div className="w-24 h-24 rounded-full bg-slate-800/80 border border-slate-700/65 flex items-center justify-center shadow-2xl relative">
+               <VideoOff className="w-10 h-10 text-slate-400" />
+               <span className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900" title="Connected" />
+             </div>
+             <div>
+               <p className="text-slate-200 font-bold text-lg leading-snug">
+                 Participant has turned off their camera
+               </p>
+               <p className="text-slate-500 text-xs mt-1">
+                 You can still communicate via voice chat
+               </p>
+             </div>
            </div>
         ) : (
            <div ref={remoteVideoRef} className="w-full h-full rounded-2xl overflow-hidden bg-black shadow-2xl relative">

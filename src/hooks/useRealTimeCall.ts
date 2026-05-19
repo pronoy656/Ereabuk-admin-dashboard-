@@ -60,6 +60,14 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       const client = clientRef.current!;
 
       // Handle remote users joining/publishing
+      client.on('user-joined', (user) => {
+        if (!mounted) return;
+        setRemoteUsers(prev => ({
+          ...prev,
+          [user.uid]: prev[user.uid] || {}
+        }));
+      });
+
       client.on('user-published', async (user, mediaType) => {
         await client.subscribe(user, mediaType);
         
