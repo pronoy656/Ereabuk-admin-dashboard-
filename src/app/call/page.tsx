@@ -19,6 +19,16 @@ function CallPageContent() {
     appId: string;
   } | null>(null);
 
+  const [consultationDetails, setConsultationDetails] = useState<{
+    topic: string;
+    context: string;
+    notes: string;
+    clientName: string;
+    clientRole: string;
+    clientImage: string | null;
+    clientInitials: string;
+  } | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -88,6 +98,32 @@ function CallPageContent() {
           channelName,
           appId: appId || process.env.NEXT_PUBLIC_AGORA_APP_ID || "",
         });
+
+        // Step 3: Fetch real consultation details (Notes, Client Name, Topic)
+        try {
+          const bookingsRes = await api.get('/consultation/my-bookings');
+          const allBookings = bookingsRes.data?.data || bookingsRes.data;
+          if (Array.isArray(allBookings)) {
+            const currentBooking = allBookings.find((b: any) => b._id === consultationId || b.id === consultationId);
+            if (currentBooking) {
+              const clientName = currentBooking.user?.name || currentBooking.name || "Client User";
+              const clientImage = currentBooking.user?.image || currentBooking.user?.avatar || currentBooking.image || null;
+              const initials = clientName.charAt(0).toUpperCase();
+              
+              setConsultationDetails({
+                topic: (currentBooking.bookingType || "Consultation").toUpperCase() + " BOOKING",
+                context: currentBooking.notes ? `Consultation scheduled for ${currentBooking.bookingType} request.` : "Reviewing consultation details and client requirements.",
+                notes: currentBooking.notes || "No additional private notes provided by the client.",
+                clientName: clientName,
+                clientRole: "Client",
+                clientImage: clientImage,
+                clientInitials: initials
+              });
+            }
+          }
+        } catch (bookingErr) {
+          console.warn("Failed to fetch booking details for sidebar:", bookingErr);
+        }
       } catch (err: any) {
         console.error("Error initializing session:", err);
         setError(err.response?.data?.message || err.response?.data?.error || err.message || "Failed to initialize video session.");
@@ -124,6 +160,13 @@ function CallPageContent() {
         await api.post('/video-session/end', { sessionId: sessionData.sessionId });
       } catch (error) {
         console.error("Failed to end session gracefully:", error);
+      }
+    }
+    if (consultationId) {
+      try {
+        await api.patch(`/consultation/status/${consultationId}`, { status: 'completed' });
+      } catch (statusErr) {
+        console.error("Failed to update consultation status to completed:", statusErr);
       }
     }
     leaveCall();
@@ -187,7 +230,7 @@ function CallPageContent() {
       />
 
       {/* 📊 Right Section (Context & Transcription) */}
-      <SessionSidebar />
+      <SessionSidebar consultationDetails={consultationDetails} />
 
     </div>
   );

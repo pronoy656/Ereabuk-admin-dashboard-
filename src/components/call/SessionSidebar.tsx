@@ -4,29 +4,34 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, DollarSign, User, FileText, AlignLeft, Mic, MicOff, AlertCircle } from 'lucide-react';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
-interface SessionDetails {
-  topic: string;
-  context: string;
-  notes: string;
+interface SessionSidebarProps {
+  consultationDetails?: {
+    topic?: string;
+    context?: string;
+    notes?: string;
+    clientName?: string;
+    clientRole?: string;
+    clientImage?: string | null;
+    clientInitials?: string;
+  } | null;
 }
 
-// Simulated backend function
-const getCallDetails = (): SessionDetails => {
-  return {
-    topic: "Property Law Consultation",
-    context: "Reviewing commercial lease agreement structure.",
-    notes: "Client is extremely concerned about early termination clauses."
-  };
-};
-
-export default function SessionSidebar() {
+export default function SessionSidebar({ consultationDetails }: SessionSidebarProps = {}) {
   const [durationSec, setDurationSec] = useState(0);
   const [transcript, setTranscript] = useState<{ speaker: string, text: string }[]>([
     { speaker: "System", text: "Session started. Recording and transcription enabled." }
   ]);
   const [language, setLanguage] = useState('en-US');
   
-  const details = useRef(getCallDetails()).current;
+  const details = consultationDetails || {
+    topic: "Property Law Consultation",
+    context: "Reviewing commercial lease agreement structure.",
+    notes: "Client is extremely concerned about early termination clauses.",
+    clientName: "David Smith",
+    clientRole: "Client",
+    clientImage: null,
+    clientInitials: "D"
+  };
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   const handleTranscriptChange = useCallback((text: string, isFinal: boolean) => {
@@ -69,6 +74,26 @@ export default function SessionSidebar() {
     };
   }, [stopListening]);
 
+  // Auto-start local microphone transcription
+  useEffect(() => {
+    if (isSupported && !isListening) {
+      startListening();
+    }
+  }, [isSupported, isListening, startListening]);
+
+  // Listen for remote client transcription events from Agora DataStream / Web Audio API / VAD
+  useEffect(() => {
+    const handleRemoteTranscription = (e: any) => {
+      if (e.detail?.text) {
+        setTranscript(prev => [...prev, { speaker: e.detail.speaker || "Client", text: e.detail.text }]);
+      }
+    };
+    window.addEventListener('agora-realtime-transcription', handleRemoteTranscription);
+    return () => {
+      window.removeEventListener('agora-realtime-transcription', handleRemoteTranscription);
+    };
+  }, []);
+
   // Auto-scroll transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,13 +106,17 @@ export default function SessionSidebar() {
        {/* 1. Profile Panel */}
        <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
          <div className="flex items-center gap-4">
-           <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold border border-blue-200">
-             DS
+           <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold border border-blue-200 overflow-hidden shrink-0 shadow-inner">
+             {details.clientImage ? (
+               <img src={details.clientImage} alt={details.clientName} className="w-full h-full object-cover" />
+             ) : (
+               details.clientInitials
+             )}
            </div>
            <div>
-             <h2 className="text-lg font-bold text-slate-900">David Smith</h2>
+             <h2 className="text-lg font-bold text-slate-900">{details.clientName}</h2>
              <span className="text-[13px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-sm">
-               Client
+               {details.clientRole}
              </span>
            </div>
          </div>

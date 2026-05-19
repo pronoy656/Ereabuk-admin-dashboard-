@@ -81,6 +81,9 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
 
       client.on('user-unpublished', (user, mediaType) => {
         if (!mounted) return;
+        if (mediaType === 'audio' && typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
+          clearInterval((window as any)._remoteVadInterval);
+        }
         setRemoteUsers(prev => {
           const updated = { ...prev };
           if (updated[user.uid]) {
@@ -93,11 +96,30 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
 
       client.on('user-left', (user) => {
         if (!mounted) return;
+        if (typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
+          clearInterval((window as any)._remoteVadInterval);
+        }
         setRemoteUsers(prev => {
            const updated = { ...prev };
            delete updated[user.uid];
            return updated;
         });
+      });
+
+      // Listen for Agora DataStream / WebSocket live transcription messages from mobile app
+      client.on('stream-message', (uid, payload) => {
+        try {
+          const textDecoder = new TextDecoder();
+          const decoded = textDecoder.decode(payload);
+          const data = JSON.parse(decoded);
+          if (data.text && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('agora-realtime-transcription', {
+              detail: { speaker: data.speaker || `Client (${uid})`, text: data.text }
+            }));
+          }
+        } catch (e) {
+          console.warn("Failed to decode stream message:", e);
+        }
       });
 
       try {
@@ -178,6 +200,9 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
     return () => {
       mounted = false;
       const cleanup = async () => {
+        if (typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
+          clearInterval((window as any)._remoteVadInterval);
+        }
         if (localAudioRef.current) {
           localAudioRef.current.stop();
           localAudioRef.current.close();

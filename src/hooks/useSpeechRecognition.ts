@@ -22,6 +22,7 @@ export const useSpeechRecognition = ({ language = 'en-US', onTranscriptChange }:
   const [interimTranscript, setInterimTranscript] = useState('');
   
   const recognitionRef = useRef<any>(null);
+  const shouldListenRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -67,44 +68,71 @@ export const useSpeechRecognition = ({ language = 'en-US', onTranscriptChange }:
       if (event.error === 'not-allowed') {
         setError('Microphone permission denied. Please allow microphone access.');
         setIsListening(false);
+        shouldListenRef.current = false;
       } else {
         setError(`Speech recognition error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
-      // Handle unexpected stops while we still want to be listening
-      // For continuous listening, we can restart it if it wasn't manually stopped,
-      // but for better control we just update the state here.
-      setIsListening(false);
       setInterimTranscript('');
+      if (shouldListenRef.current && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsListening(true);
+        } catch (e: any) {
+          if (e?.name === 'InvalidStateError') {
+             setIsListening(true);
+          } else {
+             setIsListening(false);
+          }
+        }
+      } else {
+        setIsListening(false);
+      }
     };
 
     recognitionRef.current = recognition;
 
+    // If we were already listening before language change, restart
+    if (shouldListenRef.current) {
+      try { 
+        recognition.start(); 
+        setIsListening(true); 
+      } catch(e: any){
+        if (e?.name === 'InvalidStateError') setIsListening(true);
+      }
+    }
+
     // Cleanup on unmount or language change
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try { recognitionRef.current.stop(); } catch(e){}
       }
     };
-  }, [language]); // Re-initialize if language changes
+  }, [language, onTranscriptChange]); // Re-initialize if language changes
 
   const startListening = useCallback(() => {
     setError(null);
+    shouldListenRef.current = true;
     if (recognitionRef.current && !isListening) {
       try {
         recognitionRef.current.start();
         setIsListening(true);
-      } catch (err) {
-        console.error("Could not start recognition:", err);
+      } catch (err: any) {
+        if (err?.name === 'InvalidStateError') {
+          setIsListening(true);
+        } else {
+          console.error("Could not start recognition:", err);
+        }
       }
     }
   }, [isListening]);
 
   const stopListening = useCallback(() => {
+    shouldListenRef.current = false;
     if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.stop(); } catch(e){}
       setIsListening(false);
       setInterimTranscript('');
     }

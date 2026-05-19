@@ -94,24 +94,27 @@ export default function IncomingRequests() {
       if (response.data.success) {
         const allData = response.data.data;
         
-        // 1. Update Counts (all that are not yet accepted or rejected)
+        // 1. Update Counts (all that are not yet accepted, confirmed, completed, or rejected)
         const newCounts = {
           Instant: allData.filter((r: any) => 
             r.bookingType?.toLowerCase() === "instant" && 
             r.status?.toLowerCase() !== "accepted" && 
             r.status?.toLowerCase() !== "confirmed" && 
+            r.status?.toLowerCase() !== "completed" && 
             r.status?.toLowerCase() !== "rejected"
           ).length,
           Schedule: allData.filter((r: any) => 
             (r.bookingType?.toLowerCase() === "scheduled" || r.bookingType?.toLowerCase() === "schedule") && 
             r.status?.toLowerCase() !== "accepted" && 
             r.status?.toLowerCase() !== "confirmed" && 
+            r.status?.toLowerCase() !== "completed" && 
             r.status?.toLowerCase() !== "rejected"
           ).length,
           Callback: allData.filter((r: any) => 
             r.bookingType?.toLowerCase() === "callback" && 
             r.status?.toLowerCase() !== "accepted" && 
             r.status?.toLowerCase() !== "confirmed" && 
+            r.status?.toLowerCase() !== "completed" && 
             r.status?.toLowerCase() !== "rejected"
           ).length,
         };
@@ -352,7 +355,11 @@ export default function IncomingRequests() {
 
                 {/* Right side actions */}
                 <div className="flex flex-row md:flex-col gap-3 shrink-0 self-start md:self-center w-full md:w-auto">
-                  {req.status === "accepted" || req.status === "confirmed" ? (
+                  {req.status?.toLowerCase() === "completed" ? (
+                    <span className="text-emerald-600 text-[13px] font-bold uppercase tracking-wider bg-emerald-50 border border-emerald-200 px-6 py-2.5 rounded-xl text-center shadow-sm flex items-center justify-center gap-1.5 animate-in zoom-in duration-300">
+                      <Check className="w-4 h-4" /> Completed
+                    </span>
+                  ) : req.status === "accepted" || req.status === "confirmed" ? (
                       <AcceptedActionState req={req} />
                     ) : (
                       <>
