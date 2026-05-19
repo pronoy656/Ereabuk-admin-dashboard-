@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack, IRemoteVideoTrack, IRemoteAudioTrack } from 'agora-rtc-sdk-ng';
 
 export interface UseRealTimeCallProps {
@@ -61,6 +61,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
 
       // Handle remote users joining/publishing
       client.on('user-joined', (user) => {
+        console.log("👥 Remote user joined call:", user.uid);
         if (!mounted) return;
         setRemoteUsers(prev => ({
           ...prev,
@@ -69,7 +70,9 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       });
 
       client.on('user-published', async (user, mediaType) => {
+        console.log(`📡 user-published event fired for uid ${user.uid}, mediaType: ${mediaType}`);
         await client.subscribe(user, mediaType);
+        console.log(`✅ Subscribed to uid ${user.uid} for mediaType: ${mediaType}`);
         
         if (!mounted) return;
 
@@ -83,11 +86,16 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
         }));
 
         if (mediaType === 'audio') {
+          console.log("🔊 Am I receiving voice messages or not? YES! Received audio track from remote user:", user.uid);
           user.audioTrack?.play();
+          console.log("🔊 Playing remote audio track for uid:", user.uid);
+        } else if (mediaType === 'video') {
+          console.log("🎥 Received video track from remote user:", user.uid);
         }
       });
 
       client.on('user-unpublished', (user, mediaType) => {
+        console.log(`📡 user-unpublished event fired for uid ${user.uid}, mediaType: ${mediaType}`);
         if (!mounted) return;
         if (mediaType === 'audio' && typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
           clearInterval((window as any)._remoteVadInterval);
@@ -103,6 +111,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       });
 
       client.on('user-left', (user) => {
+        console.log("👥 Remote user left call:", user.uid);
         if (!mounted) return;
         if (typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
           clearInterval((window as any)._remoteVadInterval);
@@ -116,17 +125,23 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
 
       // Listen for Agora DataStream / WebSocket live transcription messages from mobile app
       client.on('stream-message', (uid, payload) => {
+        console.log("📥 Am I receiving transcription messages or not? YES! Stream message event received from uid:", uid);
         try {
           const textDecoder = new TextDecoder();
           const decoded = textDecoder.decode(payload);
+          console.log("📥 Decoded stream message payload string:", decoded);
           const data = JSON.parse(decoded);
+          console.log("📥 Parsed stream message JSON object:", data);
           if (data.text && typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('agora-realtime-transcription', {
               detail: { speaker: data.speaker || `Client (${uid})`, text: data.text }
             }));
+            console.log("📢 Dispatched custom agora-realtime-transcription event successfully.");
+          } else {
+            console.warn("⚠️ Received stream message but 'text' property is missing or empty.");
           }
         } catch (e) {
-          console.warn("Failed to decode stream message:", e);
+          console.warn("❌ Failed to decode/parse stream message:", e);
         }
       });
 
@@ -143,7 +158,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
           console.log("❌ CAMERA ERROR:", err?.name, err?.message);
         }
 
-        if (!appId || !channel || !token) {
+        if (!appId || !channel) {
            console.warn("Agora connection aborted: Missing required credentials.", { appId, channel, token });
            return;
         }
@@ -231,7 +246,15 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       cleanup();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId, channel]); // Ignore track deps to avoid rebuild loops
+  }, [appId, channel, token]); // Ignore track deps to avoid rebuild loops
+
+  // Debug useEffect to output live state of remote users and tracks
+  useEffect(() => {
+    console.log("📊 Call State Audit - Joined:", joined, "| Active remote users count:", Object.keys(remoteUsers).length);
+    Object.entries(remoteUsers).forEach(([uid, tracks]) => {
+      console.log(`   └─ Remote User [${uid}]: Has Video: ${!!tracks.video}, Has Audio: ${!!tracks.audio}`);
+    });
+  }, [joined, remoteUsers]);
 
   const toggleMute = async () => {
     if (localAudioTrack) {
@@ -254,6 +277,24 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       }
     }
   };
+
+  const sendTranscript = useCallback(async (text: string, speaker: string = "Consultant") => {
+    const client = clientRef.current as any;
+    if (!client || client.connectionState !== 'CONNECTED') {
+      console.warn("Cannot send transcript: Agora client is not connected.");
+      return;
+    }
+    try {
+      const payload = JSON.stringify({ speaker, text });
+      const encoder = new TextEncoder();
+      const data = encoder.encode(payload);
+
+      await client.sendStreamMessage(data);
+      console.log("Sent transcription stream message:", { speaker, text });
+    } catch (err) {
+      console.warn("Failed to send transcription stream message:", err);
+    }
+  }, []);
 
   const leaveCall = async () => {
     if (localAudioRef.current) {
@@ -279,6 +320,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
     toggleMute,
     toggleVideo,
     leaveCall,
-    mediaError
+    mediaError,
+    sendTranscript
   };
 }

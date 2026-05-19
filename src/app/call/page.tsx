@@ -88,7 +88,10 @@ function CallPageContent() {
         console.log("Join session response:", joinRes.data);
         
         const joinData = joinRes.data?.data || joinRes.data;
-        const token = joinData?.token || resData?.token || joinData?.session?.token;
+        let token = joinData?.token || resData?.token || joinData?.session?.token;
+        if (token === 'null' || token === 'undefined') {
+          token = null;
+        }
         const channelName = joinData?.channelName || resData?.channelName || joinData?.session?.channelName;
         const appId = joinData?.appId || resData?.appId || joinData?.session?.appId;
 
@@ -144,7 +147,8 @@ function CallPageContent() {
     toggleMute,
     toggleVideo,
     leaveCall,
-    mediaError
+    mediaError,
+    sendTranscript
   } = useRealTimeCall({
     appId: sessionData?.appId || "",
     channel: sessionData?.channelName || "",
@@ -233,7 +237,7 @@ function CallPageContent() {
       />
 
       {/* 📊 Right Section (Context & Transcription) */}
-      <SessionSidebar consultationDetails={consultationDetails} />
+      <SessionSidebar consultationDetails={consultationDetails} sendTranscript={sendTranscript} />
 
     </div>
   );

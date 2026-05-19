@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, DollarSign, User, FileText, AlignLeft, Mic, MicOff, AlertCircle } from 'lucide-react';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useAuth } from '@/context/AuthContext';
 
 interface SessionSidebarProps {
   consultationDetails?: {
@@ -14,9 +15,11 @@ interface SessionSidebarProps {
     clientImage?: string | null;
     clientInitials?: string;
   } | null;
+  sendTranscript?: (text: string, speaker: string) => void;
 }
 
-export default function SessionSidebar({ consultationDetails }: SessionSidebarProps = {}) {
+export default function SessionSidebar({ consultationDetails, sendTranscript }: SessionSidebarProps = {}) {
+  const { user } = useAuth();
   const [durationSec, setDurationSec] = useState(0);
   const [transcript, setTranscript] = useState<{ speaker: string, text: string }[]>([
     { speaker: "System", text: "Session started. Recording and transcription enabled." }
@@ -37,8 +40,11 @@ export default function SessionSidebar({ consultationDetails }: SessionSidebarPr
   const handleTranscriptChange = useCallback((text: string, isFinal: boolean) => {
     if (isFinal) {
       setTranscript(prev => [...prev, { speaker: "You", text }]);
+      if (sendTranscript) {
+        sendTranscript(text, user?.name || "Consultant");
+      }
     }
-  }, []);
+  }, [sendTranscript, user?.name]);
 
   const {
     isListening,
