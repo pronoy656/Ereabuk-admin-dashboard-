@@ -15,6 +15,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const [connectionState, setConnectionState] = useState<string>('DISCONNECTED');
   
   // Track remote users
   const [remoteUsers, setRemoteUsers] = useState<Record<string, { video?: IRemoteVideoTrack, audio?: IRemoteAudioTrack }>>({});
@@ -59,9 +60,21 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
 
       const client = clientRef.current!;
 
+      // Handle connection state changes
+      client.on('connection-state-change', (curState, revState, reason) => {
+        console.log(
+          `%c🌐 AGORA CONNECTION STATE CHANGED: ${revState} -> ${curState} (Reason: ${reason || 'N/A'})`,
+          'color: #ffffff; background: #8B5CF6; font-weight: bold; font-size: 13px; padding: 4px; border-radius: 4px;'
+        );
+        if (mounted) setConnectionState(curState);
+      });
+
       // Handle remote users joining/publishing
       client.on('user-joined', (user) => {
-        console.log("👥 Remote user joined call:", user.uid);
+        console.log(
+          `%c🟢 AGORA USER-JOINED: User ${user.uid} has entered the channel`,
+          'color: #ffffff; background: #10B981; font-weight: bold; font-size: 14px; padding: 4px; border-radius: 4px;'
+        );
         if (!mounted) return;
         setRemoteUsers(prev => ({
           ...prev,
@@ -70,9 +83,15 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       });
 
       client.on('user-published', async (user, mediaType) => {
-        console.log(`📡 user-published event fired for uid ${user.uid}, mediaType: ${mediaType}`);
+        console.log(
+          `%c📡 AGORA USER-PUBLISHED: User ${user.uid} published [${mediaType}]`,
+          'color: #ffffff; background: #3B82F6; font-weight: bold; font-size: 13px; padding: 3px; border-radius: 4px;'
+        );
         await client.subscribe(user, mediaType);
-        console.log(`✅ Subscribed to uid ${user.uid} for mediaType: ${mediaType}`);
+        console.log(
+          `%c✅ AGORA SUBSCRIBED: Subscribed to ${user.uid}'s [${mediaType}] track successfully`,
+          'color: #ffffff; background: #059669; font-weight: bold; font-size: 13px; padding: 3px; border-radius: 4px;'
+        );
         
         if (!mounted) return;
 
@@ -86,16 +105,18 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
         }));
 
         if (mediaType === 'audio') {
-          console.log("🔊 Am I receiving voice messages or not? YES! Received audio track from remote user:", user.uid);
+          console.log(`%c🎤 AUDIO TRACK FOUND: Playing remote audio track for user ${user.uid}...`, 'color: #ffffff; background: #D97706; padding: 2px; border-radius: 2px;');
           user.audioTrack?.play();
-          console.log("🔊 Playing remote audio track for uid:", user.uid);
         } else if (mediaType === 'video') {
-          console.log("🎥 Received video track from remote user:", user.uid);
+          console.log(`%c🎥 VIDEO TRACK FOUND: Remote video track loaded for user ${user.uid}.`, 'color: #ffffff; background: #2563EB; padding: 2px; border-radius: 2px;');
         }
       });
 
       client.on('user-unpublished', (user, mediaType) => {
-        console.log(`📡 user-unpublished event fired for uid ${user.uid}, mediaType: ${mediaType}`);
+        console.log(
+          `%c📡 AGORA USER-UNPUBLISHED: User ${user.uid} stopped publishing [${mediaType}]`,
+          'color: #1F2937; background: #F3F4F6; font-weight: bold; font-size: 12px; padding: 3px; border-radius: 4px;'
+        );
         if (!mounted) return;
         if (mediaType === 'audio' && typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
           clearInterval((window as any)._remoteVadInterval);
@@ -111,7 +132,10 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       });
 
       client.on('user-left', (user) => {
-        console.log("👥 Remote user left call:", user.uid);
+        console.log(
+          `%c🔴 AGORA USER-LEFT: User ${user.uid} has left the channel`,
+          'color: #ffffff; background: #EF4444; font-weight: bold; font-size: 14px; padding: 4px; border-radius: 4px;'
+        );
         if (!mounted) return;
         if (typeof window !== 'undefined' && (window as any)._remoteVadInterval) {
           clearInterval((window as any)._remoteVadInterval);
@@ -248,13 +272,32 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, channel, token]); // Ignore track deps to avoid rebuild loops
 
-  // Debug useEffect to output live state of remote users and tracks
+  // Periodic audit and debug logs
   useEffect(() => {
-    console.log("📊 Call State Audit - Joined:", joined, "| Active remote users count:", Object.keys(remoteUsers).length);
-    Object.entries(remoteUsers).forEach(([uid, tracks]) => {
-      console.log(`   └─ Remote User [${uid}]: Has Video: ${!!tracks.video}, Has Audio: ${!!tracks.audio}`);
-    });
-  }, [joined, remoteUsers]);
+    const interval = setInterval(() => {
+      const client = clientRef.current;
+      if (!client) return;
+      
+      const remoteUsersArray = client.remoteUsers;
+      console.log(`%c🕒 [PERIODIC AUDIT] AppID: ${appId} | Channel: ${channel} | My UID: ${uid} | Connection: ${client.connectionState} | Remote Users: ${remoteUsersArray.length}`, 'color: #6B7280; font-size: 11px;');
+      
+      if (remoteUsersArray.length === 0) {
+        console.log("%c⚠️ NO REMOTE USERS IN CHANNEL", 'color: #D97706; font-size: 11px; font-weight: bold;');
+      } else {
+        remoteUsersArray.forEach(u => {
+          if (!u.hasAudio && !u.hasVideo) {
+            console.log(`%c⚠️ User ${u.uid} joined but DID NOT publish any tracks!`, 'color: #DC2626; font-size: 11px; font-weight: bold;');
+          } else if (u.hasAudio && !u.hasVideo) {
+            console.log(`%cℹ️ User ${u.uid} published ONLY AUDIO.`, 'color: #2563EB; font-size: 11px;');
+          } else if (!u.hasAudio && u.hasVideo) {
+            console.log(`%cℹ️ User ${u.uid} published ONLY VIDEO.`, 'color: #2563EB; font-size: 11px;');
+          }
+        });
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const toggleMute = async () => {
     if (localAudioTrack) {
@@ -313,6 +356,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
 
   return {
     joined,
+    connectionState,
     localVideoTrack,
     remoteUsers,
     isMuted,

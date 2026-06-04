@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, DollarSign, User, FileText, AlignLeft, Mic, MicOff, AlertCircle } from 'lucide-react';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useTranscription } from '@/hooks/useTranscription';
 import { useAuth } from '@/context/AuthContext';
 
 interface SessionSidebarProps {
@@ -16,14 +17,23 @@ interface SessionSidebarProps {
     clientInitials?: string;
   } | null;
   sendTranscript?: (text: string, speaker: string) => void;
+  consultationId?: string | null;
+  sessionId?: string | null;
 }
 
-export default function SessionSidebar({ consultationDetails, sendTranscript }: SessionSidebarProps = {}) {
+export default function SessionSidebar({ consultationDetails, sendTranscript, consultationId, sessionId }: SessionSidebarProps = {}) {
   const { user } = useAuth();
   const [durationSec, setDurationSec] = useState(0);
-  const [transcript, setTranscript] = useState<{ speaker: string, text: string }[]>([
-    { speaker: "System", text: "Session started. Recording and transcription enabled." }
-  ]);
+
+  // Live transcription via Socket.io (Agora STT + peer relay + history)
+  const {
+    transcripts,
+    isConnected,
+    sttActive,
+    clientInterim,
+    sendSpeech,
+    addLocalTranscript,
+  } = useTranscription({ consultationId: consultationId || null, sessionId: sessionId || null });
   const [language, setLanguage] = useState('en-US');
   
   const details = consultationDetails || {
@@ -39,12 +49,13 @@ export default function SessionSidebar({ consultationDetails, sendTranscript }: 
 
   const handleTranscriptChange = useCallback((text: string, isFinal: boolean) => {
     if (isFinal) {
-      setTranscript(prev => [...prev, { speaker: "You", text }]);
+      addLocalTranscript("You", text);
+      sendSpeech(text);
       if (sendTranscript) {
         sendTranscript(text, user?.name || "Consultant");
       }
     }
-  }, [sendTranscript, user?.name]);
+  }, [sendTranscript, user?.name, addLocalTranscript, sendSpeech]);
 
   const {
     isListening,
@@ -91,19 +102,19 @@ export default function SessionSidebar({ consultationDetails, sendTranscript }: 
   useEffect(() => {
     const handleRemoteTranscription = (e: any) => {
       if (e.detail?.text) {
-        setTranscript(prev => [...prev, { speaker: e.detail.speaker || "Client", text: e.detail.text }]);
+        addLocalTranscript(e.detail.speaker || "Client", e.detail.text);
       }
     };
     window.addEventListener('agora-realtime-transcription', handleRemoteTranscription);
     return () => {
       window.removeEventListener('agora-realtime-transcription', handleRemoteTranscription);
     };
-  }, []);
+  }, [addLocalTranscript]);
 
   // Auto-scroll transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript]);
+  }, [transcripts, clientInterim]);
 
 
   return (
@@ -198,6 +209,14 @@ export default function SessionSidebar({ consultationDetails, sendTranscript }: 
             <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-white border-b border-slate-50 z-10 shadow-sm">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                  <AlignLeft className="w-4 h-4 text-blue-500" /> Live Transcript
+                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase ${
+                   isConnected
+                     ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                     : 'bg-slate-100 text-slate-400 border border-slate-200'
+                 }`}>
+                   <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                   {isConnected ? 'STT Live' : 'STT Off'}
+                 </span>
               </h3>
               
               <div className="flex items-center gap-2">
@@ -244,7 +263,7 @@ export default function SessionSidebar({ consultationDetails, sendTranscript }: 
               )}
               
               <div className="flex-1 space-y-4 pb-4">
-                {transcript.map((line, idx) => (
+                {transcripts.map((line, idx) => (
                   <div key={idx} className={`flex flex-col ${line.speaker === "You" ? "items-end" : "items-start"}`}>
                     <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{line.speaker}</span>
                     <div className={`
@@ -260,7 +279,7 @@ export default function SessionSidebar({ consultationDetails, sendTranscript }: 
                   </div>
                 ))}
                 
-                {/* Interim Result */}
+                {/* Interim Result — Your voice */}
                 {interimTranscript && (
                   <div className="flex flex-col items-end animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">You (Speaking...)</span>
@@ -270,6 +289,21 @@ export default function SessionSidebar({ consultationDetails, sendTranscript }: 
                         <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                         <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                         <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Interim Result — Client voice (Agora STT) */}
+                {clientInterim && (
+                  <div className="flex flex-col items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <span className="text-[10px] font-bold text-emerald-500 mb-1 px-1">Client (Speaking...)</span>
+                    <div className="max-w-[85%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-tl-sm shadow-sm italic">
+                      {clientInterim}
+                      <span className="inline-flex ml-1 gap-0.5">
+                        <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                       </span>
                     </div>
                   </div>

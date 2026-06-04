@@ -140,6 +140,7 @@ function CallPageContent() {
 
   const {
     joined,
+    connectionState,
     localVideoTrack,
     remoteUsers,
     isMuted,
@@ -153,10 +154,12 @@ function CallPageContent() {
     appId: sessionData?.appId || "",
     channel: sessionData?.channelName || "",
     token: sessionData?.token || null,
-    uid: null
+    uid: 2001 // Fixed consultant UID for Agora STT speaker identification
   });
 
-  const remoteUsersList = Object.values(remoteUsers);
+  const remoteUsersList = Object.entries(remoteUsers)
+    .filter(([uid]) => uid.toString() !== '9001')
+    .map(([_, user]) => user);
   const hasRemoteUserJoined = remoteUsersList.length > 0;
   const firstRemoteUser = remoteUsersList[0];
 
@@ -234,10 +237,17 @@ function CallPageContent() {
         joined={joined}
         mediaError={mediaError}
         hasRemoteUserJoined={hasRemoteUserJoined}
+        connectionState={connectionState}
+        remoteUsers={remoteUsers}
       />
 
       {/* 📊 Right Section (Context & Transcription) */}
-      <SessionSidebar consultationDetails={consultationDetails} sendTranscript={sendTranscript} />
+      <SessionSidebar
+        consultationDetails={consultationDetails}
+        sendTranscript={sendTranscript}
+        consultationId={consultationId}
+        sessionId={sessionData?.sessionId}
+      />
 
     </div>
   );
