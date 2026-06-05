@@ -17,6 +17,7 @@ function CallPageContent() {
     token: string;
     channelName: string;
     appId: string;
+    uid: number;
   } | null>(null);
 
   const [consultationDetails, setConsultationDetails] = useState<{
@@ -47,7 +48,7 @@ function CallPageContent() {
 
         // Step 1: Create session or Fetch existing if duplicate
         try {
-          const createRes = await api.post('/video-session', { consultationId });
+          const createRes = await api.post('/video-session/create', { consultationId });
           console.log("Create session response:", createRes.data);
           resData = createRes.data?.data || createRes.data;
           sessionId = resData?.sessionId || resData?.id || resData?._id || resData?.session?.sessionId || resData?.session?.id || resData?.session?._id;
@@ -94,12 +95,14 @@ function CallPageContent() {
         }
         const channelName = joinData?.channelName || resData?.channelName || joinData?.session?.channelName;
         const appId = joinData?.appId || resData?.appId || joinData?.session?.appId;
+        const uid = joinData?.uid || resData?.uid || joinData?.session?.uid || 2001;
 
         setSessionData({
           sessionId,
           token,
           channelName,
           appId: appId || process.env.NEXT_PUBLIC_AGORA_APP_ID || "",
+          uid: Number(uid),
         });
 
         // Step 3: Fetch real consultation details (Notes, Client Name, Topic)
@@ -154,7 +157,7 @@ function CallPageContent() {
     appId: sessionData?.appId || "",
     channel: sessionData?.channelName || "",
     token: sessionData?.token || null,
-    uid: 2001 // Fixed consultant UID for Agora STT speaker identification
+    uid: sessionData?.uid || 2001 
   });
 
   const remoteUsersList = Object.entries(remoteUsers)
@@ -247,6 +250,7 @@ function CallPageContent() {
         sendTranscript={sendTranscript}
         consultationId={consultationId}
         sessionId={sessionData?.sessionId}
+        onAutoEnd={handleEndCall}
       />
 
     </div>

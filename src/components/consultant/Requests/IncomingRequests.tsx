@@ -188,7 +188,8 @@ export default function IncomingRequests() {
       }
       return false;
     } catch (error: any) {
-      console.error("[Status Update Error]:", error.response?.data || error.message);
+      console.error("[Status Update Error]:", error);
+      console.error("[Status Update Error] Response:", error?.response?.status, error?.response?.data);
       toast.error(error.response?.data?.message || `Failed to update booking status`);
       return false;
     } finally {
@@ -200,13 +201,6 @@ export default function IncomingRequests() {
 
   useEffect(() => {
     refreshData();
-
-    // Set up real-time polling every 10 seconds
-    const interval = setInterval(() => {
-      refreshData(true); // Silent update
-    }, 10000);
-
-    return () => clearInterval(interval);
   }, [activeTab]);
 
   const handleAccept = async (id: string) => {

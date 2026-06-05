@@ -6,14 +6,41 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import { io, Socket } from "socket.io-client";
+import Cookies from "js-cookie";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Session {
-  id: string;
+  id: string; // Video Session ID
+  consultationId: string;
   consultant: string;
+  consultantAvatar?: string;
   customer: string;
-  cost: string;
+  customerAvatar?: string;
+  cost: number | string;
   startedAt: string;
   status: string;
+  pdfUrl?: string; // If invoice exists
+}
+
+function getSocketUrl(): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://10.10.7.106:5000/api/v1";
+  try {
+    const url = new URL(apiUrl);
+    return url.origin;
+  } catch {
+    return "http://10.10.7.106:5000";
+  }
 }
 
 
@@ -22,14 +49,19 @@ export default function LiveMonitoringTable() {
   const [loading, setLoading] = useState(true);
   const [activeCount, setActiveCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Force End Modal State
+  const [endModalOpen, setEndModalOpen] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [endReason, setEndReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [isEnding, setIsEnding] = useState(false);
 
   const fetchActiveConsultations = async () => {
     try {
       setLoading(true);
       const response = await api.get("/admin/active-consultations");
       if (response.data.success) {
-        // Mapping backend session data if necessary, assuming similar structure for now
-        // If the backend returns different field names, we would map them here
         setSessions(response.data.data.sessions || []);
         setActiveCount(response.data.data.count || 0);
       }
@@ -42,15 +74,77 @@ export default function LiveMonitoringTable() {
 
   useEffect(() => {
     fetchActiveConsultations();
-    // Optional: Refresh every 30 seconds for live monitoring
+
+    const token = Cookies.get("accessToken");
+    if (!token) return;
+
+    const socketUrl = getSocketUrl();
+    const socket: Socket = io(socketUrl, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => {
+      console.log("🔌 Admin Socket connected for live monitoring");
+    });
+
+    // Handle real-time billing updates
+    socket.on("live-billing-update", (data: { consultationId: string; consumedAmount: number }) => {
+      setSessions((prevSessions) =>
+        prevSessions.map((session) => {
+          if (session.consultationId === data.consultationId || session.id === data.consultationId) {
+            return { ...session, cost: `$${Number(data.consumedAmount).toFixed(2)}` };
+          }
+          return session;
+        })
+      );
+    });
+
+    // Auto refresh every 30 seconds as fallback
     const interval = setInterval(fetchActiveConsultations, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
   }, []);
 
-  const filteredSessions = sessions.filter(session =>
-    session.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    session.consultant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    session.customer.toLowerCase().includes(searchQuery.toLowerCase())
+  const handleForceEnd = async () => {
+    if (!selectedSessionId) return;
+    const finalReason = endReason === "Other" ? otherReason : endReason;
+    if (!finalReason.trim()) {
+      toast.error("Please provide a reason to end the session.");
+      return;
+    }
+
+    try {
+      setIsEnding(true);
+      // Fallback: If your backend implements /admin/video-session/end, use that.
+      // We will try standard /video-session/end first.
+      const response = await api.post("/video-session/end", { 
+        sessionId: selectedSessionId,
+        reason: finalReason 
+      });
+      
+      if (response.data?.success || response.status === 200) {
+        toast.success("Session ended successfully");
+        setEndModalOpen(false);
+        setEndReason("");
+        setOtherReason("");
+        setSelectedSessionId(null);
+        fetchActiveConsultations(); // Refresh list
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to force end session");
+    } finally {
+      setIsEnding(false);
+    }
+  };
+
+  const filteredSessions = (sessions || []).filter(session =>
+    (session.id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (session.consultant || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (session.customer || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -105,6 +199,7 @@ export default function LiveMonitoringTable() {
                 <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">CURRENT COST</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">STARTED AT</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">SESSION</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -129,10 +224,22 @@ export default function LiveMonitoringTable() {
                     <span className="text-[13px] font-semibold text-slate-500">{session.id}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-[14px] font-bold text-slate-800">{session.consultant}</span>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={session.consultantAvatar} alt={session.consultant || "Consultant"} />
+                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">{(session.consultant || "?").charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-[14px] font-bold text-slate-800">{session.consultant || "Unknown"}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-[14px] font-medium text-slate-500">{session.customer}</span>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={session.customerAvatar} alt={session.customer || "Customer"} />
+                        <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">{(session.customer || "?").charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-[14px] font-medium text-slate-500">{session.customer || "Unknown"}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-[14px] font-bold text-slate-800">{session.cost}</span>
@@ -146,16 +253,36 @@ export default function LiveMonitoringTable() {
                     <span
                       className={cn(
                         "inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-bold tracking-wide border",
-                        session.status.toLowerCase() === "active"
+                        (session.status || "").toLowerCase() === "active" || (session.status || "").toLowerCase() === "ongoing"
                           ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                           : "bg-slate-100 text-slate-500 border-slate-200"
                       )}
                     >
-                      {session.status.toLowerCase() === "active" && (
+                      {((session.status || "").toLowerCase() === "active" || (session.status || "").toLowerCase() === "ongoing") && (
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />
                       )}
                       {session.status}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {((session.status || "").toLowerCase() === "active" || (session.status || "").toLowerCase() === "ongoing") ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedSessionId(session.id);
+                          setEndModalOpen(true);
+                        }}
+                      >
+                        Force End
+                      </Button>
+                    ) : session.pdfUrl ? (
+                      <a href={session.pdfUrl} target="_blank" rel="noreferrer">
+                        <Button variant="outline" size="sm">View Invoice</Button>
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 text-xs">Ended</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -164,6 +291,60 @@ export default function LiveMonitoringTable() {
         </div>
 
       </div>
+      
+      {/* Force End Session Modal */}
+      <Dialog open={endModalOpen} onOpenChange={setEndModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              ⚠️ Force End Session
+            </DialogTitle>
+            <DialogDescription>
+              This will immediately terminate the call for both parties and trigger the billing process. Please select a reason for this override.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reason for termination</label>
+              <Select value={endReason} onValueChange={setEndReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Technical Issue">Technical Issue</SelectItem>
+                  <SelectItem value="Dispute / Conflict">Dispute / Conflict</SelectItem>
+                  <SelectItem value="Inappropriate Content">Inappropriate Content</SelectItem>
+                  <SelectItem value="Other">Other (Type below)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {endReason === "Other" && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <label className="text-sm font-medium">Please specify</label>
+                <Input 
+                  placeholder="Type specific reason..." 
+                  value={otherReason}
+                  onChange={(e) => setOtherReason(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndModalOpen(false)} disabled={isEnding}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleForceEnd} 
+              disabled={isEnding || !endReason || (endReason === "Other" && !otherReason.trim())}
+            >
+              {isEnding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              End Session
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

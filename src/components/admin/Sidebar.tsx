@@ -24,7 +24,7 @@ const items = [
       { href: "/admin/users", label: "Users", Icon: Users },
       { href: "/admin/reports", label: "Reports", Icon: FileText },
       { href: "/admin/legal", label: "Legal", Icon: FileText },
-      // { href: "/admin/live-monitoring", label: "Live Monitoring", Icon: Activity },
+      { href: "/admin/live-monitoring", label: "Live Monitoring", Icon: Activity },
       { href: "/admin/payments", label: "Payments", Icon: CreditCard },
       { href: "/admin/support", label: "Support", Icon: Headphones },
     ]

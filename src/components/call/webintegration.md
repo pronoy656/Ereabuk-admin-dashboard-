@@ -1,149 +1,150 @@
-# Web Integration Guide for Video Sessions (Agora)
+# FixPair Video Session Integration Guideline (Web Admin Dashboard)
 
-This guide provides instructions for web developers to integrate video consultation functionality into the Consultant Dashboard using the Agora SDK and our backend API.
-
-## Overview
-
-The video session flow is managed by the backend and uses **Agora RTC** for real-time communication. The backend handles session state, Agora token generation, and automated billing.
-
-### Session Lifecycle
-
-1. **Initiation**: Either the consultant or user initiates the session based on an accepted consultation.
-2. **Joining**: Both parties join the session. **Joining triggers the billing timer.**
-3. **Ongoing**: Live video/audio communication.
-4. **Termination**: Either party ends the session. **Ending stops the billing timer and generates an invoice.**
+This document provides a comprehensive guide for the Admin Dashboard and Consultant Web Platform to integrate and manage real-time video sessions using Agora RTC and the FixPair Backend API.
 
 ---
 
-## 1. Setup
+## 1. Overview
+### Purpose
+The Video Session module facilitates real-time, peer-to-peer communication between Consultants and Users. It is the core value proposition of the FixPair platform, integrating scheduling, real-time signaling, automated per-minute billing, and final invoice generation.
 
-### Agora SDK
-
-Add the Agora Web SDK to your project:
-
-```bash
-npm install agora-rtc-sdk-ng
-```
-
-### Required Configuration
-
-You will need the **Agora App ID**, which can be retrieved from the backend team or configuration.
+### Connectivity
+- **Consultation Flow**: A video session can only be created for an **Accepted/Confirmed** consultation.
+- **Billing Engine**: The session state (ongoing/ended) directly controls the automated billing cycle.
+- **Notifications**: Signaling (incoming calls) is handled via Socket.io for Web and FCM for Mobile.
 
 ---
 
-## 2. API Integration
-
-### Step 1: Create a Video Session
-
-Before joining, a session must be created for a specific consultation.
-
-**Endpoint**: `POST /api/v1/video-session`  
-**Headers**: `Authorization: Bearer <token>`  
-**Body**:
-
-```json
-{
-  "consultationId": "65f..."
-}
-```
-
-**Response**: Returns a `sessionId`, `channelName`, and `token`.
+## 2. Video Session Flow
+1. **Consultation Request**: User creates a request.
+2. **Acceptance**: Consultant accepts the request (Status: `pending` -> `confirmed`).
+3. **Session Creation**: Either party initiates the call, creating a `VideoSession` record (Status: `pending`).
+4. **Signaling**: Backend sends an `incoming-call` event to the recipient.
+5. **Joining**: Both users join the channel. **The first user joining triggers the billing engine.**
+6. **Live Session**: Agora RTC handles the media stream. Backend tracks duration.
+7. **End Session**: Either user clicks "End Call".
+8. **Finalization**: Backend stops billing, generates a PDF invoice, and marks consultation as `completed`.
 
 ---
 
-### Step 2: Join the Session
+## 3. Required APIs
 
-This step is critical as it **starts the billing**. Only call this when the user is actually ready to enter the call.
+### A. Session Management
+| Action | Endpoint | Method | Description |
+| :--- | :--- | :--- | :--- |
+| **Create Session** | `/api/v1/video-session/create` | `POST` | Creates a new session for a `consultationId`. Returns `appId`, `token`, and `channelName`. |
+| **Join Session** | `/api/v1/video-session/join` | `POST` | **Crucial**: Starts the billing timer. Call this right before `client.join()`. |
+| **End Session** | `/api/v1/video-session/end` | `POST` | Stops billing and triggers invoice generation. |
+| **Get My Sessions** | `/api/v1/video-session` | `GET` | List all sessions for the logged-in user/consultant. |
 
-**Endpoint**: `POST /api/v1/video-session/join`  
-**Body**:
-
-```json
-{
-  "sessionId": "65f..."
-}
-```
-
-**Response**: Returns the session details including the `token` and `channelName`.
+### B. Supporting APIs
+| Action | Endpoint | Method | Description |
+| :--- | :--- | :--- | :--- |
+| **Get Invoice** | `/api/v1/payment/invoice/:consultationId` | `GET` | Retrieve the generated billing data after a session ends. |
+| **Call Action** | `/api/v1/video-session/action` | `POST` | Handle `REJECT` or `CANCEL` actions for incoming calls. |
 
 ---
 
-### Step 3: Agora RTC Implementation (Web)
+## 4. Frontend Integration Details
 
-Use the `token` and `channelName` received from the backend to join the Agora channel.
+### Local State Storage
+After calling the **Create** or **Join** API, the frontend must store the following in its state/context:
+- `sessionId`: The unique ID of the video session record.
+- `consultationId`: The related booking ID.
+- `appId`: The Agora App ID (provided by backend).
+- `token`: The temporary security token for the channel.
+- `channelName`: The unique channel string (e.g., `consultation_65f...`).
+- `uid`: The numeric UID assigned by backend (`1001` for User, `2001` for Consultant).
 
+### Handling UI States
+- **Loading**: Show a "Connecting..." overlay while calling Join API and initializing Agora.
+- **Success**: Display the local video stream and start a local timer for visual feedback.
+- **Error**: Handle "Permission Denied" (mic/cam), "Network Error", or "Insufficient Funds" (from Join API).
+
+---
+
+## 5. Agora RTC Integration (Code Snippets)
+
+### Initialization
 ```javascript
 import AgoraRTC from "agora-rtc-sdk-ng";
 
 const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+let localTracks = { videoTrack: null, audioTrack: null };
 
-async function startCall(appId, channel, token, uid) {
-  // 1. Join the channel
-  await client.join(appId, channel, token, uid);
+async function initializeCall(data) {
+  const { appId, channelName, token, uid } = data;
 
-  // 2. Create and publish local tracks (audio & video)
-  const [audioTrack, videoTrack] =
+  // 1. Join Channel
+  await client.join(appId, channelName, token, uid);
+
+  // 2. Create Tracks
+  [localTracks.audioTrack, localTracks.videoTrack] = 
     await AgoraRTC.createMicrophoneAndCameraTracks();
-  await client.publish([audioTrack, videoTrack]);
 
-  // 3. Play local video in a div container
-  videoTrack.play("local-player");
-
-  // 4. Handle remote users
-  client.on("user-published", async (user, mediaType) => {
-    await client.subscribe(user, mediaType);
-    if (mediaType === "video") {
-      user.videoTrack.play("remote-player");
-    }
-    if (mediaType === "audio") {
-      user.audioTrack.play();
-    }
-  });
+  // 3. Publish
+  await client.publish(Object.values(localTracks));
+  
+  // 4. Play Local
+  localTracks.videoTrack.play("local-video-container");
 }
+```
+
+### Remote User Handling
+```javascript
+client.on("user-published", async (user, mediaType) => {
+  await client.subscribe(user, mediaType);
+  if (mediaType === "video") {
+    user.videoTrack.play("remote-video-container");
+  }
+  if (mediaType === "audio") {
+    user.audioTrack.play();
+  }
+});
 ```
 
 ---
 
-### Step 4: End the Session
-
-When the consultant or user clicks "End Call", you must notify the backend to **stop billing**.
-
-**Endpoint**: `POST /api/v1/video-session/end`  
-**Body**:
-
-```json
-{
-  "sessionId": "65f..."
-}
-```
+## 6. Admin Dashboard Features
+The Admin Dashboard should provide a high-level view of all real-time activity:
+1. **Live Monitor**: List all sessions with status `ongoing`.
+2. **Participant Tracking**: Show User vs. Consultant details for every active call.
+3. **Billing Status**: Display `consumedAmount` in real-time (updated via Socket.io).
+4. **Manual Override**: Admins should have an "End Session" button to force-stop a call if a dispute occurs or a user is stuck.
+5. **Invoice View**: Access the PDF URL generated at the end of each session.
 
 ---
 
-## 3. Consultant Dashboard Features
+## 7. Status Management Reference
 
-### Active Session Monitoring
-
-Consultants can see their history and pending sessions using:
-**Endpoint**: `GET /api/v1/video-session`
-
-### Important Rules
-
-1. **Billing Trigger**: Billing starts only when the status changes to `ongoing` via the `/join` endpoint.
-2. **Auto-Termination**: If the user's balance runs out, the backend will trigger an auto-end. The web app should listen for a socket event `consultation-auto-ended` to gracefully close the UI.
-3. **Rejoining**: If a user disconnects accidentally, they can rejoin using the same `sessionId` as long as the session hasn't been explicitly "ended".
+| Status | Meaning | Frontend Behavior |
+| :--- | :--- | :--- |
+| `pending` | Session created, recipient notified. | Show "Calling..." screen. |
+| `ongoing` | At least one user joined, billing active. | Show Video UI and active timer. |
+| `ended` | Session closed by user or system. | Show "Call Summary" or redirect to Review. |
+| `cancelled` | Caller hung up before answer. | Close call overlay. |
+| `failed` | Payment failed or system error. | Show "Insufficient Balance" or "Connection Error". |
 
 ---
 
-## 4. Socket Events (Optional but Recommended)
-
-To provide a real-time experience, the consultant dashboard should listen for:
-
-- `consultation-auto-ended`: Received when the session is terminated by the system (e.g., payment failure).
-- `user-joined`: Can be used to show a notification when the client enters the room.
+## 8. Error Handling Checklist
+- **Missing AppID**: Backend configuration error. Check `.env`.
+- **User Failed to Publish**: Check browser permissions (Camera/Mic).
+- **Remote User Not Joining**: Recipient may have rejected the call or is offline.
+- **Session Already Ended**: User trying to join a completed consultation.
+- **Network Disconnect**: Implement `client.on("connection-state-change")` to handle re-joining.
 
 ---
 
-## 5. Security Notes
+## 9. Testing Checklist
+- [ ] User A joins, User B joins -> Both see each other.
+- [ ] Muting/Unmuting works for both audio and video.
+- [ ] Refreshing the browser allows re-joining the same session.
+- [ ] Clicking "End Call" redirects both users and stops the billing.
+- [ ] Admin Dashboard shows the session duration correctly after it ends.
+- [ ] Invoice is generated and downloadable via the `pdfUrl` provided in response.
 
-- **Tokens**: Agora tokens are short-lived. If a session lasts very long, the app might need to refresh the token (though the backend default is usually sufficient for standard consultations).
-- **Permissions**: Ensure the browser has granted camera and microphone permissions before calling the `/join` endpoint.
+---
+**Document Version**: 1.1  
+**Last Updated**: 2026-06-05  
+**Backend Support**: FixPair Dev Team

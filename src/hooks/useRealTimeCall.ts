@@ -16,10 +16,10 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<string>('DISCONNECTED');
-  
+
   // Track remote users
   const [remoteUsers, setRemoteUsers] = useState<Record<string, { video?: IRemoteVideoTrack, audio?: IRemoteAudioTrack }>>({});
-  
+
   // Mute states
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
@@ -32,11 +32,11 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
   useEffect(() => {
     let mounted = true;
     let AgoraRTC: any;
-    
+
     const initCall = async () => {
       // Avoid starting the pipeline if unmounted or already connected
       if (!mounted) return;
-      
+
       // Native browser media check requested by USER for debugging
       if (typeof window !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -50,12 +50,12 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       } else {
         console.log("❌ ERROR OCCURRED: navigator.mediaDevices is undefined (likely non-secure HTTP context)");
       }
-      
+
       const AgoraMod = await import('agora-rtc-sdk-ng');
       AgoraRTC = AgoraMod.default;
 
       if (!clientRef.current) {
-         clientRef.current = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        clientRef.current = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       }
 
       const client = clientRef.current!;
@@ -92,7 +92,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
           `%c✅ AGORA SUBSCRIBED: Subscribed to ${user.uid}'s [${mediaType}] track successfully`,
           'color: #ffffff; background: #059669; font-weight: bold; font-size: 13px; padding: 3px; border-radius: 4px;'
         );
-        
+
         if (!mounted) return;
 
         setRemoteUsers(prev => ({
@@ -141,9 +141,9 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
           clearInterval((window as any)._remoteVadInterval);
         }
         setRemoteUsers(prev => {
-           const updated = { ...prev };
-           delete updated[user.uid];
-           return updated;
+          const updated = { ...prev };
+          delete updated[user.uid];
+          return updated;
         });
       });
 
@@ -183,29 +183,29 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
         }
 
         if (!appId || !channel) {
-           console.warn("Agora connection aborted: Missing required credentials.", { appId, channel, token });
-           return;
+          console.warn("Agora connection aborted: Missing required credentials.", { appId, channel, token });
+          return;
         }
-        
+
         if (client.connectionState === 'DISCONNECTED') {
-            await client.join(appId, channel, token, uid);
+          await client.join(appId, channel, token, uid);
         }
-        
+
         if (!mounted) return;
-        
+
         // Setup local tracks safely maintaining refs (Works completely offline!)
         try {
 
           if (!localAudioRef.current) {
-             const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-             localAudioRef.current = audioTrack;
-             setLocalAudioTrack(audioTrack);
+            const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+            localAudioRef.current = audioTrack;
+            setLocalAudioTrack(audioTrack);
           }
-          
+
           if (!localVideoRef.current) {
-             const videoTrack = await AgoraRTC.createCameraVideoTrack();
-             localVideoRef.current = videoTrack;
-             setLocalVideoTrack(videoTrack);
+            const videoTrack = await AgoraRTC.createCameraVideoTrack();
+            localVideoRef.current = videoTrack;
+            setLocalVideoTrack(videoTrack);
           }
           setMediaError(null);
         } catch (mediaErr: any) {
@@ -222,14 +222,14 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
           }
           setMediaError(errorMsg);
         }
-        
+
         // Ensure not attempting to publish if already published or running locally offline
         const publishPayload = [];
         if (localAudioRef.current) publishPayload.push(localAudioRef.current);
         if (localVideoRef.current) publishPayload.push(localVideoRef.current);
-        
+
         if (publishPayload.length > 0) {
-            await client.publish(publishPayload);
+          await client.publish(publishPayload);
         }
 
         if (mounted) setJoined(true);
@@ -263,13 +263,13 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
         if (clientRef.current) {
           clientRef.current.removeAllListeners();
           if (clientRef.current.connectionState !== 'DISCONNECTED') {
-             try { await clientRef.current.leave(); } catch (e) { /* ignore */ }
+            try { await clientRef.current.leave(); } catch (e) { /* ignore */ }
           }
         }
       };
       cleanup();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, channel, token]); // Ignore track deps to avoid rebuild loops
 
   // Periodic audit and debug logs
@@ -277,10 +277,10 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
     const interval = setInterval(() => {
       const client = clientRef.current;
       if (!client) return;
-      
+
       const remoteUsersArray = client.remoteUsers;
       console.log(`%c🕒 [PERIODIC AUDIT] AppID: ${appId} | Channel: ${channel} | My UID: ${uid} | Connection: ${client.connectionState} | Remote Users: ${remoteUsersArray.length}`, 'color: #6B7280; font-size: 11px;');
-      
+
       if (remoteUsersArray.length === 0) {
         console.log("%c⚠️ NO REMOTE USERS IN CHANNEL", 'color: #D97706; font-size: 11px; font-weight: bold;');
       } else {
@@ -349,7 +349,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       localVideoRef.current.close();
     }
     if (clientRef.current) {
-       try { await clientRef.current.leave(); } catch (e) { /* ignore */ }
+      try { await clientRef.current.leave(); } catch (e) { /* ignore */ }
     }
     setJoined(false);
   };

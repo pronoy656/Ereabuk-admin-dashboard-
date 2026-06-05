@@ -15,6 +15,7 @@ interface UseTranscriptionProps {
   consultationId: string | null;
   sessionId: string | null;
   enabled?: boolean;
+  onAutoEnd?: () => void;
 }
 
 /**
@@ -36,6 +37,7 @@ export function useTranscription({
   consultationId,
   sessionId,
   enabled = true,
+  onAutoEnd,
 }: UseTranscriptionProps) {
   // ── state ──────────────────────────────────────────────────────────
   const [transcripts, setTranscripts] = useState<TranscriptLine[]>([
@@ -157,6 +159,9 @@ export function useTranscription({
           source: 'system',
         },
       ]);
+      if (onAutoEnd) {
+        onAutoEnd();
+      }
     });
 
     return () => {

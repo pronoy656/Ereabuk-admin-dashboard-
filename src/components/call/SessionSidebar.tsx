@@ -19,9 +19,10 @@ interface SessionSidebarProps {
   sendTranscript?: (text: string, speaker: string) => void;
   consultationId?: string | null;
   sessionId?: string | null;
+  onAutoEnd?: () => void;
 }
 
-export default function SessionSidebar({ consultationDetails, sendTranscript, consultationId, sessionId }: SessionSidebarProps = {}) {
+export default function SessionSidebar({ consultationDetails, sendTranscript, consultationId, sessionId, onAutoEnd }: SessionSidebarProps = {}) {
   const { user } = useAuth();
   const [durationSec, setDurationSec] = useState(0);
 
@@ -33,7 +34,7 @@ export default function SessionSidebar({ consultationDetails, sendTranscript, co
     clientInterim,
     sendSpeech,
     addLocalTranscript,
-  } = useTranscription({ consultationId: consultationId || null, sessionId: sessionId || null });
+  } = useTranscription({ consultationId: consultationId || null, sessionId: sessionId || null, onAutoEnd });
   const [language, setLanguage] = useState('en-US');
   
   const details = consultationDetails || {
