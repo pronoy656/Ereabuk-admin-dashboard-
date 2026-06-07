@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import VideoWorkspace from '@/components/call/VideoWorkspace';
 import SessionSidebar from '@/components/call/SessionSidebar';
@@ -32,6 +32,7 @@ function CallPageContent() {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initializationStartedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!consultationId) {
@@ -39,6 +40,13 @@ function CallPageContent() {
       setIsLoading(false);
       return;
     }
+
+    // Prevent double initialization in StrictMode or re-renders
+    if (initializationStartedRef.current === consultationId) {
+      return;
+    }
+    
+    initializationStartedRef.current = consultationId;
 
     const initializeSession = async () => {
       try {
@@ -90,20 +98,34 @@ function CallPageContent() {
         
         const joinData = joinRes.data?.data || joinRes.data;
         let token = joinData?.token || resData?.token || joinData?.session?.token;
-        if (token === 'null' || token === 'undefined') {
-          token = null;
+        
+        // Clean token: Remove quotes and trim whitespace
+        if (typeof token === 'string') {
+          token = token.replace(/['"]+/g, '').trim();
+          if (token === 'null' || token === 'undefined' || token === '') {
+            token = null;
+          }
         }
-        const channelName = joinData?.channelName || resData?.channelName || joinData?.session?.channelName;
-        const appId = joinData?.appId || resData?.appId || joinData?.session?.appId;
-        const uid = joinData?.uid || resData?.uid || joinData?.session?.uid || 2001;
 
-        setSessionData({
+        const channelName = (joinData?.channelName || resData?.channelName || joinData?.session?.channelName || "").trim();
+        const appId = (joinData?.appId || resData?.appId || joinData?.session?.appId || process.env.NEXT_PUBLIC_AGORA_APP_ID || "").trim();
+        
+        // Get raw UID from backend without forcing Number conversion immediately
+        const rawUid = joinData?.uid ?? resData?.uid ?? joinData?.session?.uid ?? 2001;
+
+        const finalSessionData = {
           sessionId,
           token,
           channelName,
-          appId: appId || process.env.NEXT_PUBLIC_AGORA_APP_ID || "",
-          uid: Number(uid),
+          appId,
+          uid: rawUid, 
+        };
+
+        console.log("🛠️ AGORA JOIN PAYLOAD (REFINED):", {
+          ...finalSessionData,
+          token: token ? `${token.substring(0, 10)}...` : null
         });
+        setSessionData(finalSessionData);
 
         // Step 3: Fetch real consultation details (Notes, Client Name, Topic)
         try {
@@ -157,7 +179,7 @@ function CallPageContent() {
     appId: sessionData?.appId || "",
     channel: sessionData?.channelName || "",
     token: sessionData?.token || null,
-    uid: sessionData?.uid || 2001 
+    uid: sessionData?.uid !== undefined && sessionData?.uid !== null ? sessionData.uid : 2001 
   });
 
   const remoteUsersList = Object.entries(remoteUsers)

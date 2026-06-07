@@ -270,7 +270,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId, channel, token]); // Ignore track deps to avoid rebuild loops
+  }, [appId, channel, token, uid]); // Ignore track deps to avoid rebuild loops
 
   // Periodic audit and debug logs
   useEffect(() => {
@@ -282,22 +282,11 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       console.log(`%c🕒 [PERIODIC AUDIT] AppID: ${appId} | Channel: ${channel} | My UID: ${uid} | Connection: ${client.connectionState} | Remote Users: ${remoteUsersArray.length}`, 'color: #6B7280; font-size: 11px;');
 
       if (remoteUsersArray.length === 0) {
-        console.log("%c⚠️ NO REMOTE USERS IN CHANNEL", 'color: #D97706; font-size: 11px; font-weight: bold;');
-      } else {
-        remoteUsersArray.forEach(u => {
-          if (!u.hasAudio && !u.hasVideo) {
-            console.log(`%c⚠️ User ${u.uid} joined but DID NOT publish any tracks!`, 'color: #DC2626; font-size: 11px; font-weight: bold;');
-          } else if (u.hasAudio && !u.hasVideo) {
-            console.log(`%cℹ️ User ${u.uid} published ONLY AUDIO.`, 'color: #2563EB; font-size: 11px;');
-          } else if (!u.hasAudio && u.hasVideo) {
-            console.log(`%cℹ️ User ${u.uid} published ONLY VIDEO.`, 'color: #2563EB; font-size: 11px;');
-          }
-        });
+        console.log("%cℹ️ No remote users detected in Agora channel yet.", "color: #9CA3AF; font-style: italic; font-size: 10px;");
       }
-    }, 3000);
-
+    }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [appId, channel, uid]); // Added dependencies to fix stale closure in logs
 
   const toggleMute = async () => {
     if (localAudioTrack) {
