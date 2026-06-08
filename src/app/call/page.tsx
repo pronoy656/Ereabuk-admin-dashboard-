@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense, useRef } from 'react';
+import React, { useEffect, useState, Suspense, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import VideoWorkspace from '@/components/call/VideoWorkspace';
 import SessionSidebar from '@/components/call/SessionSidebar';
@@ -179,7 +179,8 @@ function CallPageContent() {
     appId: sessionData?.appId || "",
     channel: sessionData?.channelName || "",
     token: sessionData?.token || null,
-    uid: sessionData?.uid !== undefined && sessionData?.uid !== null ? sessionData.uid : 2001 
+    uid: sessionData?.uid !== undefined && sessionData?.uid !== null ? sessionData.uid : 2001,
+    consultationId: consultationId 
   });
 
   const remoteUsersList = Object.entries(remoteUsers)
@@ -188,7 +189,7 @@ function CallPageContent() {
   const hasRemoteUserJoined = remoteUsersList.length > 0;
   const firstRemoteUser = remoteUsersList[0];
 
-  const handleEndCall = async () => {
+  const handleEndCall = useCallback(async () => {
     if (sessionData?.sessionId) {
       try {
         await api.post('/video-session/end', { sessionId: sessionData.sessionId });
@@ -206,7 +207,7 @@ function CallPageContent() {
     leaveCall();
     // Redirect back to dashboard safely
     router.back();
-  };
+  }, [sessionData?.sessionId, consultationId, leaveCall, router]);
 
   if (isLoading) {
     return (

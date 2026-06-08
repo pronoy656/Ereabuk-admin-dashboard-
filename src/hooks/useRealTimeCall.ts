@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack, IRemoteVideoTrack, IRemoteAudioTrack } from 'agora-rtc-sdk-ng';
+import api from '@/lib/axios';
 
 export interface UseRealTimeCallProps {
   appId: string;
   channel: string;
   token: string | null;
   uid?: string | number | null;
+  consultationId?: string | null;
 }
 
-export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTimeCallProps) {
+export function useRealTimeCall({ appId, channel, token, uid = null, consultationId = null }: UseRealTimeCallProps) {
   const [joined, setJoined] = useState(false);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
@@ -75,6 +77,11 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
           `%c🟢 AGORA USER-JOINED: User ${user.uid} has entered the channel`,
           'color: #ffffff; background: #10B981; font-weight: bold; font-size: 14px; padding: 4px; border-radius: 4px;'
         );
+        
+        if (user.uid.toString() === '9001') {
+          console.log("%c🤖 STT BOT DETECTED: Agora STT Service is now active in this channel.", "color: #ffffff; background: #7C3AED; font-weight: bold; padding: 4px; border-radius: 4px;");
+        }
+
         if (!mounted) return;
         setRemoteUsers(prev => ({
           ...prev,
@@ -147,25 +154,52 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
         });
       });
 
-      // Listen for Agora DataStream / WebSocket live transcription messages from mobile app
-      client.on('stream-message', (uid, payload) => {
-        console.log("📥 Am I receiving transcription messages or not? YES! Stream message event received from uid:", uid);
-        try {
-          const textDecoder = new TextDecoder();
-          const decoded = textDecoder.decode(payload);
-          console.log("📥 Decoded stream message payload string:", decoded);
-          const data = JSON.parse(decoded);
-          console.log("📥 Parsed stream message JSON object:", data);
-          if (data.text && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('agora-realtime-transcription', {
-              detail: { speaker: data.speaker || `Client (${uid})`, text: data.text }
-            }));
-            console.log("📢 Dispatched custom agora-realtime-transcription event successfully.");
-          } else {
-            console.warn("⚠️ Received stream message but 'text' property is missing or empty.");
+      // Listen for Agora DataStream / WebSocket live transcription messages from Agora STT bot
+       client.on('stream-message', async (uid, payload) => {
+         console.log(`📥 Received stream message from UID: ${uid}`);
+         
+         // 1. Only process if it's from the STT bot (UID 9001)
+         if (uid.toString() !== '9001') {
+           console.log(`ℹ️ Ignoring stream message from non-STT source (UID: ${uid})`);
+           return;
+         }
+
+         try {
+           const textDecoder = new TextDecoder('utf-8');
+           const decoded = textDecoder.decode(payload);
+           console.log("📥 STT BOT RAW PAYLOAD:", decoded);
+           
+           const result = JSON.parse(decoded);
+           console.log("📥 STT BOT PARSED JSON:", result);
+          
+          // result structure: { uid, text, isFinal, timestamp }
+          // where result.uid is the speaker's UID (1001 or 2001)
+
+          if (consultationId && result.text) {
+            // Forward to the backend so it can persist + fan out via Socket.IO
+            api.post(`/transcription/${consultationId}/ingest`, {
+              uid: result.uid,        // 1001 (client) or 2001 (consultant)
+              text: result.text,
+              isFinal: result.isFinal,
+              timestamp: result.timestamp,
+            }).catch(err => {
+              console.error('Failed to relay transcript chunk:', err);
+            });
+
+            // Dispatch local event for immediate (optimistic) UI if needed
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('agora-realtime-transcription', {
+                detail: { 
+                  speaker: result.uid === 2001 ? "You" : "Client", 
+                  text: result.text,
+                  isFinal: result.isFinal,
+                  timestamp: result.timestamp
+                }
+              }));
+            }
           }
         } catch (e) {
-          console.warn("❌ Failed to decode/parse stream message:", e);
+          console.warn("❌ Failed to decode/parse STT stream message:", e);
         }
       });
 
@@ -270,7 +304,7 @@ export function useRealTimeCall({ appId, channel, token, uid = null }: UseRealTi
       cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId, channel, token, uid]); // Ignore track deps to avoid rebuild loops
+  }, [appId, channel, token, uid, consultationId]); // Ignore track deps to avoid rebuild loops
 
   // Periodic audit and debug logs
   useEffect(() => {

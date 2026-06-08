@@ -9,6 +9,9 @@ export interface TranscriptLine {
   speaker: string;
   text: string;
   source?: 'local' | 'stt' | 'relay' | 'history' | 'system';
+  timestamp?: string | number;
+  speakerUid?: number;
+  isFinal?: boolean;
 }
 
 interface UseTranscriptionProps {
@@ -45,6 +48,7 @@ export function useTranscription({
       speaker: 'System',
       text: 'Session started. Recording and transcription enabled.',
       source: 'system',
+      timestamp: Date.now(),
     },
   ]);
   const [isConnected, setIsConnected] = useState(false);
@@ -53,6 +57,29 @@ export function useTranscription({
 
   const socketRef = useRef<Socket | null>(null);
   const processedRef = useRef<Set<string>>(new Set());
+
+  // Helper to upsert a caption line based on speaker and timestamp
+  const upsertCaptionLine = useCallback((line: TranscriptLine) => {
+    setTranscripts((prev) => {
+      // Find index of an existing line with the same speakerUid and timestamp
+      // Only for non-system/non-history lines that have these fields
+      if (line.speakerUid && line.timestamp) {
+        const existingIndex = prev.findIndex(
+          (t) => t.speakerUid === line.speakerUid && t.timestamp === line.timestamp
+        );
+
+        if (existingIndex !== -1) {
+          // If we found an existing one, update it (e.g. replacing interim with final)
+          const updated = [...prev];
+          updated[existingIndex] = { ...updated[existingIndex], ...line };
+          return updated;
+        }
+      }
+
+      // Otherwise, just append
+      return [...prev, line];
+    });
+  }, []);
 
   // ── Socket.io connection ───────────────────────────────────────────
   useEffect(() => {
@@ -107,28 +134,21 @@ export function useTranscription({
         // Only process transcripts for THIS consultation
         if (data.consultationId !== consultationId) return;
 
-        // Skip consultant's own voice – local speech‑rec handles it
-        if (data.speakerUid === 2001) return;
-
-        // Non‑final → show as "Client typing…" indicator
-        if (!data.isFinal) {
-          setClientInterim(data.text);
-          return;
-        }
-
-        // Deduplicate
-        const key = `stt-${data.timestamp}-${data.text.substring(0, 40)}`;
-        if (processedRef.current.has(key)) return;
-        processedRef.current.add(key);
+        // Skip consultant's own voice if it's already handled locally or via relay
+        // However, we want the canonical copy from socket for synchronization.
+        // Let's rely on the upsert logic to handle deduplication.
 
         setSttActive(true);
-        setClientInterim(''); // clear interim
-
+        
         if (data.text.trim()) {
-          setTranscripts((prev) => [
-            ...prev,
-            { speaker: 'Client', text: data.text, source: 'stt' },
-          ]);
+          upsertCaptionLine({
+            speaker: data.speakerUid === 2001 ? 'You' : 'Client',
+            text: data.text,
+            source: 'stt',
+            isFinal: data.isFinal,
+            timestamp: data.timestamp,
+            speakerUid: data.speakerUid
+          });
         }
       },
     );
@@ -142,7 +162,7 @@ export function useTranscription({
         if (data.text?.trim()) {
           setTranscripts((prev) => [
             ...prev,
-            { speaker: data.speaker || 'Client', text: data.text, source: 'relay' },
+            { speaker: data.speaker || 'Client', text: data.text, source: 'relay', timestamp: Date.now() },
           ]);
         }
       },
@@ -157,6 +177,7 @@ export function useTranscription({
           speaker: 'System',
           text: 'Session ended automatically by the system.',
           source: 'system',
+          timestamp: Date.now(),
         },
       ]);
       if (onAutoEnd) {
@@ -170,7 +191,31 @@ export function useTranscription({
       socketRef.current = null;
       setIsConnected(false);
     };
-  }, [consultationId, enabled]);
+  }, [consultationId, enabled, onAutoEnd, upsertCaptionLine]);
+
+  // Listen for local (optimistic) updates from the RTC stream-message relay
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOptimisticTranscription = (e: any) => {
+      const { speaker, text, isFinal, timestamp, speakerUid } = e.detail;
+      if (text?.trim()) {
+        upsertCaptionLine({ 
+          speaker, 
+          text, 
+          isFinal, 
+          timestamp, 
+          speakerUid,
+          source: 'stt' 
+        });
+      }
+    };
+
+    window.addEventListener('agora-realtime-transcription', handleOptimisticTranscription);
+    return () => {
+      window.removeEventListener('agora-realtime-transcription', handleOptimisticTranscription);
+    };
+  }, [upsertCaptionLine]);
 
   // ── Fetch transcript history on mount ──────────────────────────────
   useEffect(() => {
@@ -188,6 +233,9 @@ export function useTranscription({
               speaker: item.speakerUid === 2001 ? 'You' : 'Client',
               text: item.text,
               source: 'history' as const,
+              timestamp: item.timestamp,
+              speakerUid: item.speakerUid,
+              isFinal: true
             }));
 
           if (historyLines.length > 0) {
